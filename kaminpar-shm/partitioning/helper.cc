@@ -267,11 +267,11 @@ void extend_partition_lazy_extraction(
   auto subgraph_partitions = TIMED_SCOPE("Allocation") {
     SCOPED_HEAP_PROFILER("Allocation");
 
-    ScalableVector<StaticArray<BlockID>> subgraph_partitions;
-    for (BlockID b = 0; b < k; ++b) {
+    ScalableVector<StaticArray<BlockID>> subgraph_partitions(k);
+    tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
       const NodeID num_block_nodes = block_nodes_offset[b + 1] - block_nodes_offset[b];
-      subgraph_partitions.emplace_back(num_block_nodes);
-    }
+      subgraph_partitions[b].resize(num_block_nodes, static_array::seq);
+    });
 
     return subgraph_partitions;
   };
@@ -415,10 +415,11 @@ void extend_partition(
   auto subgraph_partitions = TIMED_SCOPE("Allocation") {
     SCOPED_HEAP_PROFILER("Allocation");
 
-    ScalableVector<StaticArray<BlockID>> subgraph_partitions;
-    for (const auto &subgraph : subgraphs) {
-      subgraph_partitions.emplace_back(subgraph.n());
-    }
+    const BlockID num_subgraphs = static_cast<BlockID>(subgraphs.size());
+    ScalableVector<StaticArray<BlockID>> subgraph_partitions(num_subgraphs);
+    tbb::parallel_for<BlockID>(0, num_subgraphs, [&](const BlockID b) {
+      subgraph_partitions[b].resize(subgraphs[b].n(), static_array::seq);
+    });
 
     return subgraph_partitions;
   };

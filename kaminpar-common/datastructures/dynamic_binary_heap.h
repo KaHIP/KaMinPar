@@ -55,9 +55,12 @@ public:
   }
 
   void pop() {
-    std::swap(_heap.front(), _heap.back());
+    KASSERT(!empty());
+    _heap.front() = _heap.back();
     _heap.pop_back();
-    sift_down(0);
+    if (!_heap.empty()) {
+      sift_down(0);
+    }
   }
 
   void clear() {
@@ -78,37 +81,45 @@ public:
 
 private:
   void sift_up(std::size_t pos) {
+    const HeapElement elem = _heap[pos];
     while (pos != 0) {
       const std::size_t parent = (pos - 1) / kTreeArity;
-      if (_comparator(_heap[parent].key, _heap[pos].key)) {
-        std::swap(_heap[pos], _heap[parent]);
+      if (!_comparator(_heap[parent].key, elem.key)) {
+        break;
       }
+      _heap[pos] = _heap[parent];
       pos = parent;
     }
+    _heap[pos] = elem;
   }
 
   void sift_down(std::size_t pos) {
+    const std::size_t n = _heap.size();
+    const HeapElement elem = _heap[pos];
     while (true) {
       const std::size_t first_child = kTreeArity * pos + 1;
-      if (first_child >= size())
-        return;
+      if (first_child >= n) {
+        break;
+      }
 
+      const std::size_t last_child = std::min(first_child + kTreeArity, n);
       std::size_t smallest_child = first_child;
-      for (std::size_t c = first_child + 1; c < std::min(kTreeArity * pos + kTreeArity + 1, size());
-           ++c) {
-        if (_comparator(_heap[smallest_child].key, _heap[c].key)) {
+      Key smallest_key = _heap[first_child].key;
+      for (std::size_t c = first_child + 1; c < last_child; ++c) {
+        if (_comparator(smallest_key, _heap[c].key)) {
           smallest_child = c;
+          smallest_key = _heap[c].key;
         }
       }
 
-      if (_comparator(_heap[smallest_child].key, _heap[pos].key) ||
-          _heap[smallest_child].key == _heap[pos].key) {
-        return;
+      if (!_comparator(elem.key, smallest_key)) {
+        break;
       }
 
-      std::swap(_heap[pos], _heap[smallest_child]);
+      _heap[pos] = _heap[smallest_child];
       pos = smallest_child;
     }
+    _heap[pos] = elem;
   }
 
   Container<HeapElement> _heap{};
