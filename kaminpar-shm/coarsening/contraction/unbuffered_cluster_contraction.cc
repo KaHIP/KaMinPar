@@ -49,12 +49,23 @@ public:
   FlatContractionMap()
       : _slots(std::make_unique<Slot[]>(kMaxCapacity)),
         _used_slots(std::make_unique<std::uint16_t[]>(kMaxCapacity)) {
+    set_capacity(kMaxCapacity);
   }
 
   FlatContractionMap(const FlatContractionMap &) = delete;
   FlatContractionMap &operator=(const FlatContractionMap &) = delete;
   FlatContractionMap(FlatContractionMap &&) noexcept = default;
   FlatContractionMap &operator=(FlatContractionMap &&) noexcept = default;
+
+  KAMINPAR_INLINE void set_capacity(const std::size_t cap) {
+    _capacity = cap;
+    _mask = cap - 1;
+    _shift = 64 - std::countr_zero(cap);
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE std::size_t capacity() const {
+    return _capacity;
+  }
 
   [[nodiscard]] KAMINPAR_INLINE std::size_t size() const {
     return _size;
@@ -104,8 +115,9 @@ public:
 private:
   std::unique_ptr<Slot[]> _slots;
   std::unique_ptr<std::uint16_t[]> _used_slots;
-  static constexpr std::size_t _mask = kMaxCapacity - 1;
-  static constexpr int _shift = 64 - std::countr_zero(kMaxCapacity);
+  std::size_t _capacity = kMaxCapacity;
+  std::size_t _mask = kMaxCapacity - 1;
+  int _shift = 64 - std::countr_zero(kMaxCapacity);
   std::size_t _size = 0;
   std::uint32_t _timestamp = 1;
 };
@@ -440,29 +452,55 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       }
     });
   } else if (con_ctx.unbuffered_implementation == ContractionImplementation::TWO_PHASE) {
-    using EdgeCollector = FlatContractionMap<65536>;
+    constexpr std::size_t kMaxHashCapacity = 65536;
+    constexpr std::size_t kMinHashCapacity = 64;
+    constexpr NodeID kDegreeThreshold = kMaxHashCapacity / 3;
+    using EdgeCollector = FlatContractionMap<kMaxHashCapacity>;
     tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
 
-    // To aggregate the edges of a coarse node for the two-phase implementation, we iterate over the
-    // fine edges of the nodes that are contracted to the coarse node and bump the coarse node to
-    // the second phase if its degree crosses a threshold.
-    constexpr NodeID kDegreeThreshold = EdgeCollector::MAP_SIZE / 3;
+    const NodeID *__restrict__ mapping_ptr = mapping.data();
+    const NodeID *__restrict__ buckets_ptr = buckets.data();
+    const NodeID *__restrict__ buckets_index_ptr = buckets_index.data();
+
     const auto aggregate_edges = [&](const NodeID c_u,
                                      auto &local_edge_collector) -> std::optional<NodeWeight> {
-      const NodeID bucket_start = buckets_index[c_u];
-      const NodeID bucket_end = buckets_index[c_u + 1];
+      const NodeID bucket_start = buckets_index_ptr[c_u];
+      const NodeID bucket_end = buckets_index_ptr[c_u + 1];
+      const NodeID cluster_size = bucket_end - bucket_start;
 
+      std::size_t upper_bound_degree = kDegreeThreshold;
       NodeWeight c_u_weight = 0;
+      if (cluster_size <= 64) [[likely]] {
+        upper_bound_degree = 0;
+        for (NodeID i = bucket_start; i < bucket_end; ++i) {
+          const NodeID u = buckets_ptr[i];
+          upper_bound_degree += graph.degree(u);
+          c_u_weight += graph.node_weight(u);
+        }
+        if (upper_bound_degree == 0) [[unlikely]] {
+          return c_u_weight;
+        }
+        const std::size_t target_cap = std::clamp<std::size_t>(
+            std::bit_ceil(std::max<std::size_t>(upper_bound_degree * 4, 1)),
+            kMinHashCapacity,
+            kMaxHashCapacity
+        );
+        local_edge_collector.set_capacity(target_cap);
+      } else {
+        local_edge_collector.set_capacity(kMaxHashCapacity);
+      }
+
+      const bool need_weight = (cluster_size > 64);
       bool second_phase_node = false;
       for (NodeID i = bucket_start; i < bucket_end; ++i) {
-        const NodeID u = buckets[i];
-        c_u_weight += graph.node_weight(u);
-
+        const NodeID u = buckets_ptr[i];
+        if (need_weight) {
+          c_u_weight += graph.node_weight(u);
+        }
         graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-          const NodeID c_v = mapping[v];
+          const NodeID c_v = mapping_ptr[v];
           if (c_u != c_v) {
             local_edge_collector.add(c_v, w);
-
             if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
               second_phase_node = true;
               return true;
@@ -470,12 +508,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
           }
           return false;
         });
-
         if (second_phase_node) [[unlikely]] {
           return std::nullopt;
         }
       }
-
       return c_u_weight;
     };
 
@@ -532,6 +568,9 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         auto &local_coarse_node_weight = coarse_node_weight_ets.local();
         auto &local_used_entries = edge_collector.local_used_entries();
         auto &local_edge_collector = edge_collector_ets.local();
+        if (local_edge_collector.capacity() != kMaxHashCapacity) {
+          local_edge_collector.set_capacity(kMaxHashCapacity);
+        }
 
         const NodeID local_bucket_start = r.begin();
         const NodeID local_bucket_end = r.end();
@@ -541,7 +580,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
 
           if (graph.degree(u) < kParallelIterationGrainsize * 2) {
             graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-              const NodeID c_v = mapping[v];
+              const NodeID c_v = mapping_ptr[v];
               if (c_u != c_v) {
                 local_edge_collector.add(c_v, w);
 
@@ -561,9 +600,12 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
               [&](auto &&pfor_adjacent_nodes) {
                 auto &local_used_entries = edge_collector.local_used_entries();
                 auto &local_edge_collector = edge_collector_ets.local();
+                if (local_edge_collector.capacity() != kMaxHashCapacity) {
+                  local_edge_collector.set_capacity(kMaxHashCapacity);
+                }
 
                 pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
-                  const NodeID c_v = mapping[v];
+                  const NodeID c_v = mapping_ptr[v];
                   if (c_u != c_v) {
                     local_edge_collector.add(c_v, w);
 
