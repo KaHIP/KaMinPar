@@ -157,6 +157,29 @@ public:
     sift_up(pos);
   }
 
+  void push_unsorted(const ID id, const Key &key) {
+    KASSERT(!contains(id));
+    KASSERT(size() < _heap.size());
+
+    const std::size_t pos = _size++;
+    _heap[pos] = {id, key};
+    _id_pos[id] = pos;
+  }
+
+  void build_heap() {
+    if (_size <= 1) {
+      return;
+    }
+    std::size_t i = (_size - 2) / kTreeArity;
+    while (true) {
+      sift_down(i);
+      if (i == 0) {
+        break;
+      }
+      --i;
+    }
+  }
+
   void push_or_change_priority(const ID id, const Key &new_key) {
     if (contains(id)) {
       change_priority(id, new_key);

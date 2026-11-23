@@ -393,7 +393,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
         ext += (part[g_edges[e]] != u_block) ? g_ew[e] : 0;
       }
       if (ext != 0) {
-        _queues[u_block].push(u, wd[u] - 2 * ext);
+        _queues[u_block].push_unsorted(u, wd[u] - 2 * ext);
         total_external_weight += ext;
       }
     };
@@ -423,7 +423,7 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
         ext += (part[g_edges[e]] != u_block);
       }
       if (ext != 0) {
-        _queues[u_block].push(u, wd[u] - 2 * ext);
+        _queues[u_block].push_unsorted(u, wd[u] - 2 * ext);
         total_external_weight += ext;
       }
     };
@@ -444,6 +444,9 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
       }
     }
   }
+
+  _queues[0].build_heap();
+  _queues[1].build_heap();
 
   KASSERT(validate_pqs(p_graph), "inconsistent PQ state after init", assert::heavy);
   return static_cast<EdgeWeight>(total_external_weight / 2);
