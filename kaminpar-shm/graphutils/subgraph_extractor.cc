@@ -6,17 +6,23 @@
  ******************************************************************************/
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 
+#include <algorithm>
+#include <vector>
+
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
+#include <tbb/task_arena.h>
 
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/parallel/loops.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
@@ -184,67 +190,74 @@ lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph) {
   const BlockID k = p_graph.k();
 
   StaticArray<NodeID> mapping(n, static_array::noinit);
-  StaticArray<NodeID> block_nodes_offset(p_graph.k() + 1);
+  StaticArray<NodeID> block_nodes_offset(k + 1);
   StaticArray<NodeID> block_nodes(n, static_array::noinit);
-  StaticArray<EdgeID> block_num_edges(p_graph.k());
+  StaticArray<EdgeID> block_num_edges(k);
 
-  tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
-    return ScalableVector<NodeID>(k);
-  }};
-  tbb::enumerable_thread_specific<ScalableVector<EdgeID>> tl_num_edges_in_block{[&] {
-    return ScalableVector<EdgeID>(k);
-  }};
+  if (n == 0) {
+    return {
+        std::move(mapping),
+        std::move(block_nodes_offset),
+        std::move(block_nodes),
+        std::move(block_num_edges),
+    };
+  }
+
+  const std::size_t cpus = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
+  CacheAlignedVector<std::vector<NodeID>> local_nodes(cpus + 1, std::vector<NodeID>(k, 0));
+  CacheAlignedVector<std::vector<EdgeID>> local_edges(cpus, std::vector<EdgeID>(k, 0));
+
+  const BlockID *__restrict__ part = p_graph.raw_partition().data();
   reified(p_graph, [&](const auto &graph) {
-    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
-      auto &num_nodes_in_block = tl_num_nodes_in_block.local();
-      auto &num_edges_in_block = tl_num_edges_in_block.local();
+    parallel::deterministic_for<NodeID>(
+        0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+          NodeID *__restrict__ num_nodes_in_block = local_nodes[cpu + 1].data();
+          EdgeID *__restrict__ num_edges_in_block = local_edges[cpu].data();
 
-      const NodeID first_node = local_nodes.begin();
-      const NodeID last_node = local_nodes.end();
-
-      for (NodeID u = first_node; u < last_node; ++u) {
-        const BlockID b = p_graph.block(u);
-        num_nodes_in_block[b] += 1;
-
-        graph.adjacent_nodes(u, [&](const NodeID v) {
-          if (p_graph.block(v) == b) {
-            num_edges_in_block[b] += 1;
+          for (NodeID u = from; u < to; ++u) {
+            const BlockID b = part[u];
+            num_nodes_in_block[b] += 1;
+            graph.adjacent_nodes(u, [&](const NodeID v) {
+              if (part[v] == b) {
+                num_edges_in_block[b] += 1;
+              }
+            });
           }
-        });
-      }
-    });
+        }
+    );
   });
 
-  tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
-    NodeID num_block_nodes = 0;
-    for (const auto &local_num_nodes : tl_num_nodes_in_block) {
-      num_block_nodes += local_num_nodes[b];
+  // Prefix sum per-block counts across threads (zero atomics in scatter pass)
+  for (BlockID b = 0; b < k; ++b) {
+    NodeID sum_nodes = 0;
+    EdgeID sum_edges = 0;
+    for (std::size_t cpu = 0; cpu < cpus; ++cpu) {
+      const NodeID cnt = local_nodes[cpu + 1][b];
+      local_nodes[cpu][b] = sum_nodes;
+      sum_nodes += cnt;
+      sum_edges += local_edges[cpu][b];
     }
-    block_nodes_offset[b + 1] = num_block_nodes;
-
-    EdgeID num_block_edges = 0;
-    for (const auto &local_num_edges : tl_num_edges_in_block) {
-      num_block_edges += local_num_edges[b];
-    }
-    block_num_edges[b] = num_block_edges;
-  });
+    block_nodes_offset[b + 1] = sum_nodes;
+    block_num_edges[b] = sum_edges;
+  }
   parallel::prefix_sum(
       block_nodes_offset.begin(), block_nodes_offset.end(), block_nodes_offset.begin()
   );
 
-  StaticArray<NodeID> block_node_index(p_graph.k());
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
-    const NodeID first_node = local_nodes.begin();
-    const NodeID last_node = local_nodes.end();
-
-    for (NodeID u = first_node; u < last_node; ++u) {
-      const BlockID b = p_graph.block(u);
-      const NodeID offset = block_nodes_offset[b];
-      const NodeID i = __atomic_fetch_add(&block_node_index[b], 1, __ATOMIC_RELAXED);
-      block_nodes[offset + i] = u;
-      mapping[u] = i;
-    }
-  });
+  const NodeID *__restrict__ offsets = block_nodes_offset.data();
+  NodeID *__restrict__ bn_ptr = block_nodes.data();
+  NodeID *__restrict__ map_ptr = mapping.data();
+  parallel::deterministic_for<NodeID>(
+      0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+        NodeID *__restrict__ cur_idx = local_nodes[cpu].data();
+        for (NodeID u = from; u < to; ++u) {
+          const BlockID b = part[u];
+          const NodeID i = cur_idx[b]++;
+          bn_ptr[offsets[b] + i] = u;
+          map_ptr[u] = i;
+        }
+      }
+  );
 
   return {
       std::move(mapping),
