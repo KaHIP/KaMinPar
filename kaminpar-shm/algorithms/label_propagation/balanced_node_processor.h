@@ -116,9 +116,6 @@ private:
     EdgeWeight internal_rating = 0;
     if (edge_weighted) {
       while (e < e_end) {
-        if (e + 8 < e_end) {
-          __builtin_prefetch(&part[g_edges[e + 8]], 0, 1);
-        }
         const BlockID b = __atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED);
         if (b != from) {
           break;
@@ -128,9 +125,6 @@ private:
       }
     } else {
       while (e < e_end) {
-        if (e + 8 < e_end) {
-          __builtin_prefetch(&part[g_edges[e + 8]], 0, 1);
-        }
         const BlockID b = __atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED);
         if (b != from) {
           break;
@@ -147,7 +141,8 @@ private:
 
     // Loop 2: boundary node — accumulate remaining neighbors without interior-check branching.
     const NodeWeight u_weight = _graph.node_weight(u);
-    const std::size_t upper_bound = std::min<BlockID>(static_cast<NodeID>(e_end - e_begin), _num_blocks);
+    const std::size_t upper_bound =
+        std::min<BlockID>(static_cast<NodeID>(e_end - e_begin), _num_blocks);
     const BlockID to = local.ratings.execute(upper_bound, [&](auto &ratings) {
       if constexpr (requires { ratings.accumulator(); }) {
         auto acc = ratings.accumulator();
@@ -156,16 +151,10 @@ private:
         }
         if (edge_weighted) {
           for (; e < e_end; ++e) {
-            if (e + 8 < e_end) {
-              __builtin_prefetch(&part[g_edges[e + 8]], 0, 1);
-            }
             acc.add(__atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED), g_ew[e]);
           }
         } else {
           for (; e < e_end; ++e) {
-            if (e + 8 < e_end) {
-              __builtin_prefetch(&part[g_edges[e + 8]], 0, 1);
-            }
             acc.add(__atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED), 1);
           }
         }
@@ -175,16 +164,10 @@ private:
         }
         if (edge_weighted) {
           for (; e < e_end; ++e) {
-            if (e + 8 < e_end) {
-              __builtin_prefetch(&part[g_edges[e + 8]], 0, 1);
-            }
             ratings[__atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED)] += g_ew[e];
           }
         } else {
           for (; e < e_end; ++e) {
-            if (e + 8 < e_end) {
-              __builtin_prefetch(&part[g_edges[e + 8]], 0, 1);
-            }
             ratings[__atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED)] += 1;
           }
         }

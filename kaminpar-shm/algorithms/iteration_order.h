@@ -153,41 +153,52 @@ public:
   template <typename Kernel> void for_each(Kernel &kernel) {
     shuffle_chunks();
 
+    const std::size_t num_chunks = _chunks.size();
     parallel::Atomic<std::size_t> next_chunk = 0;
-    tbb::parallel_for(static_cast<std::size_t>(0), _chunks.size(), [&](const std::size_t) {
+    tbb::parallel_for(tbb::blocked_range<std::size_t>(0, num_chunks), [&](const auto &range) {
       if (kernel.should_stop()) {
         return;
       }
 
       Random &rand = Random::instance();
       iteration_order_detail::LocalKernel<Kernel> local = kernel.make_local(rand);
-
-      const std::size_t chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
-      const Chunk &chunk = _chunks[chunk_id];
-      const auto &node_permutation = _random_permutations.get(rand);
-
-      const std::size_t chunk_size = chunk.end - chunk.start;
-      const std::size_t num_sub_chunks = (chunk_size + kPermutationSize - 1) / kPermutationSize;
-
       auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
-      if (sub_chunk_permutation.size() < num_sub_chunks) {
-        sub_chunk_permutation.resize(num_sub_chunks);
-      }
 
-      std::iota(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0);
-      rand.shuffle(sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks);
+      for (std::size_t r = range.begin(); r != range.end(); ++r) {
+        if (kernel.should_stop()) {
+          break;
+        }
 
-      for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
-        const NodeID base = chunk.start + kPermutationSize * sub_chunk_permutation[sub_chunk];
-        if (chunk.end - base >= kPermutationSize) {
-          for (const NodeID offset : node_permutation) {
-            local(base + offset);
-          }
-        } else {
-          for (const NodeID offset : node_permutation) {
-            const NodeID u = base + offset;
-            if (u < chunk.end) {
-              local(u);
+        const std::size_t chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
+        const Chunk &chunk = _chunks[chunk_id];
+        const auto &node_permutation = _random_permutations.get(rand);
+
+        const std::size_t chunk_size = chunk.end - chunk.start;
+        const std::size_t num_sub_chunks = (chunk_size + kPermutationSize - 1) / kPermutationSize;
+
+        if (sub_chunk_permutation.size() < num_sub_chunks) {
+          sub_chunk_permutation.resize(num_sub_chunks);
+        }
+
+        std::iota(
+            sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0
+        );
+        rand.shuffle(
+            sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks
+        );
+
+        for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
+          const NodeID base = chunk.start + kPermutationSize * sub_chunk_permutation[sub_chunk];
+          if (chunk.end - base >= kPermutationSize) {
+            for (const NodeID offset : node_permutation) {
+              local(base + offset);
+            }
+          } else {
+            for (const NodeID offset : node_permutation) {
+              const NodeID u = base + offset;
+              if (u < chunk.end) {
+                local(u);
+              }
             }
           }
         }
@@ -237,8 +248,30 @@ private:
       const std::size_t bucket_size =
           std::min<NodeID>({remaining_bucket_size, to - position, to - from});
 
-      parallel::Atomic<NodeID> offset = 0;
       const std::size_t bucket_start = std::max(graph.first_node_in_bucket(bucket), from);
+      const std::size_t chunks_start = _chunks.size();
+
+      if (bucket_size <= static_cast<std::size_t>(max_node_chunk_size) * 2) {
+        EdgeID current_chunk_size = 0;
+        NodeID chunk_start = static_cast<NodeID>(bucket_start);
+        for (std::size_t i = 0; i < bucket_size; ++i) {
+          const NodeID u = static_cast<NodeID>(bucket_start + i);
+          current_chunk_size += graph.degree(u);
+          if (current_chunk_size >= max_chunk_size) {
+            _chunks.push_back({chunk_start, u + 1});
+            chunk_start = u + 1;
+            current_chunk_size = 0;
+          }
+        }
+        if (current_chunk_size > 0) {
+          _chunks.push_back({chunk_start, static_cast<NodeID>(bucket_start + bucket_size)});
+        }
+        _buckets.push_back({chunks_start, _chunks.size()});
+        position += graph.bucket_size(bucket);
+        continue;
+      }
+
+      parallel::Atomic<NodeID> offset = 0;
 
       tbb::parallel_for(
           static_cast<int>(0), tbb::this_task_arena::max_concurrency(), [&](const int) {
@@ -282,7 +315,6 @@ private:
         local_num_chunks = 0;
       }
 
-      const std::size_t chunks_start = _chunks.size();
       parallel::Atomic<std::size_t> pos = chunks_start;
       _chunks.resize(chunks_start + num_chunks);
       tbb::parallel_for(_chunks_ets.range(), [&](auto &range) {

@@ -65,7 +65,7 @@ class ActiveSet {
 public:
   void resize(const NodeID num_nodes) {
     if (_active.size() < num_nodes) {
-      _active.resize(num_nodes);
+      _active.resize(num_nodes, static_array::noinit);
     }
   }
 
