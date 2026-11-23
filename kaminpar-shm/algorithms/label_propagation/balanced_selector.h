@@ -35,17 +35,22 @@ public:
     }
 
     BlockID best = from;
+    BlockID best_second = from;
+    std::size_t best_count = 0;
     EdgeWeight best_rating = 0;
     const BlockWeight from_overload = from_weight - _state.max_cluster_weight(from);
     BlockWeight best_overload = from_overload;
-    UniformTieSet best_ties(ties);
 
     for (const auto [block, rating] : ratings.entries()) {
+      if (rating < best_rating) {
+        continue;
+      }
+
       const BlockWeight weight = _state.cluster_weight(block);
       const BlockWeight max_weight = _state.max_cluster_weight(block);
       const BlockWeight overload = weight - max_weight;
       const bool accepted =
-          weight + u_weight <= max_weight || overload < from_overload || block == from;
+          block == from || weight + u_weight <= max_weight || overload < from_overload;
       if (!accepted) {
         continue;
       }
@@ -54,20 +59,39 @@ public:
         best = block;
         best_rating = rating;
         best_overload = overload;
-        best_ties.replace_with(block);
-      } else if (rating == best_rating) {
+        best_count = 1;
+      } else {
         if (overload < best_overload) {
           best = block;
           best_overload = overload;
-          best_ties.replace_with(block);
+          best_count = 1;
         } else if (overload == best_overload) {
-          best_ties.add(block);
+          if (best_count == 0) {
+            best = block;
+            best_count = 1;
+          } else if (best_count == 1) {
+            best_second = block;
+            best_count = 2;
+          } else {
+            if (best_count == 2) {
+              ties.clear();
+              ties.push_back(best);
+              ties.push_back(best_second);
+            }
+            ties.push_back(block);
+            ++best_count;
+          }
         }
       }
     }
 
-    best = best_ties.select_or(best, random);
-    best_ties.clear();
+    if (best_count == 2) {
+      if (random.random_bool()) {
+        best = best_second;
+      }
+    } else if (best_count > 2) {
+      best = ties[random.random_index(0, best_count)];
+    }
     return best;
   }
 
