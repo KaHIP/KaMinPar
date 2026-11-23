@@ -7,12 +7,14 @@
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 
 #include <algorithm>
+#include <type_traits>
 #include <vector>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
 #include <tbb/task_arena.h>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
@@ -214,14 +216,30 @@ lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph) {
           NodeID *__restrict__ num_nodes_in_block = local_nodes[cpu + 1].data();
           EdgeID *__restrict__ num_edges_in_block = local_edges[cpu].data();
 
-          for (NodeID u = from; u < to; ++u) {
-            const BlockID b = part[u];
-            num_nodes_in_block[b] += 1;
-            graph.adjacent_nodes(u, [&](const NodeID v) {
-              if (part[v] == b) {
-                num_edges_in_block[b] += 1;
+          if constexpr (std::is_same_v<std::decay_t<decltype(graph)>, CSRGraph>) {
+            const EdgeID *__restrict__ g_nodes = graph.raw_nodes().data();
+            const NodeID *__restrict__ g_edges = graph.raw_edges().data();
+            for (NodeID u = from; u < to; ++u) {
+              const BlockID b = part[u];
+              num_nodes_in_block[b] += 1;
+              EdgeID deg_in_block = 0;
+              const EdgeID e_begin = g_nodes[u];
+              const EdgeID e_end = g_nodes[u + 1];
+              for (EdgeID e = e_begin; e < e_end; ++e) {
+                deg_in_block += (part[g_edges[e]] == b);
               }
-            });
+              num_edges_in_block[b] += deg_in_block;
+            }
+          } else {
+            for (NodeID u = from; u < to; ++u) {
+              const BlockID b = part[u];
+              num_nodes_in_block[b] += 1;
+              graph.adjacent_nodes(u, [&](const NodeID v) {
+                if (part[v] == b) {
+                  num_edges_in_block[b] += 1;
+                }
+              });
+            }
           }
         }
     );
@@ -375,14 +393,30 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
           NodeID *__restrict__ num_nodes_in_block = local_nodes[cpu + 1].data();
           EdgeID *__restrict__ num_edges_in_block = local_edges[cpu].data();
 
-          for (NodeID u = from; u < to; ++u) {
-            const BlockID u_block = part[u];
-            ++num_nodes_in_block[u_block];
-            graph.adjacent_nodes(u, [&](const NodeID v) {
-              if (part[v] == u_block) {
-                ++num_edges_in_block[u_block];
+          if constexpr (std::is_same_v<std::decay_t<Graph>, CSRGraph>) {
+            const EdgeID *__restrict__ g_nodes = graph.raw_nodes().data();
+            const NodeID *__restrict__ g_edges = graph.raw_edges().data();
+            for (NodeID u = from; u < to; ++u) {
+              const BlockID u_block = part[u];
+              ++num_nodes_in_block[u_block];
+              EdgeID deg = 0;
+              const EdgeID e_begin = g_nodes[u];
+              const EdgeID e_end = g_nodes[u + 1];
+              for (EdgeID e = e_begin; e < e_end; ++e) {
+                deg += (part[g_edges[e]] == u_block);
               }
-            });
+              num_edges_in_block[u_block] += deg;
+            }
+          } else {
+            for (NodeID u = from; u < to; ++u) {
+              const BlockID u_block = part[u];
+              ++num_nodes_in_block[u_block];
+              graph.adjacent_nodes(u, [&](const NodeID v) {
+                if (part[v] == u_block) {
+                  ++num_edges_in_block[u_block];
+                }
+              });
+            }
           }
         }
     );
