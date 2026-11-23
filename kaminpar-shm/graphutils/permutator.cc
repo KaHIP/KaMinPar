@@ -358,6 +358,23 @@ PartitionedGraph assign_isolated_nodes(
 }
 
 NodeID count_isolated_nodes(const Graph &graph) {
+  if (graph.sorted()) {
+    if (const auto *csr = dynamic_cast<const CSRGraph *>(graph.underlying_graph());
+        csr != nullptr) {
+      const NodeID n = csr->n();
+      if (n == 0) {
+        return 0;
+      }
+      const EdgeID *__restrict__ nodes = csr->raw_nodes().data();
+      const EdgeID m = nodes[n];
+      if (nodes[n - 1] < m) {
+        return 0;
+      }
+      const EdgeID *first_isolated = std::lower_bound(nodes, nodes + n, m);
+      return static_cast<NodeID>(n - (first_isolated - nodes));
+    }
+  }
+
   tbb::enumerable_thread_specific<NodeID> isolated_nodes_ets;
 
   reified(graph, [&](const auto &graph) {

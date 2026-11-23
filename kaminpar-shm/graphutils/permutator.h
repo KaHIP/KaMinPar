@@ -42,13 +42,17 @@ NodePermutations compute_node_permutation_by_generic_buckets(
       cpus + 1, std::vector<NodeID>(num_buckets + 1)
   );
 
+  NodeID *__restrict__ perm_ptr = permutation.data();
+  NodeID *__restrict__ inv_ptr = inverse_permutation.data();
+
   parallel::deterministic_for<NodeID>(
       0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
         KASSERT(cpu < cpus);
+        NodeID *__restrict__ my_counts = local_buckets[cpu + 1].data();
 
         for (NodeID u = from; u < to; ++u) {
           const auto bucket = find_bucket(u);
-          permutation[u] = local_buckets[cpu + 1][bucket]++;
+          perm_ptr[u] = my_counts[bucket]++;
         }
       }
   );
@@ -69,19 +73,22 @@ NodePermutations compute_node_permutation_by_generic_buckets(
     for (std::size_t id = 0; id + 1 < cpus; ++id) {
       local_buckets[id + 1][i] += local_buckets[id][i];
     }
+    for (std::size_t id = 0; id < cpus; ++id) {
+      local_buckets[id][i] += global_buckets[i];
+    }
   }
 
   // Apply offsets to obtain global permutation and simultaneously build inverse permutation
   parallel::deterministic_for<NodeID>(
       0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
         KASSERT(cpu < cpus);
-        const auto &my_buckets = local_buckets[cpu];
+        const NodeID *__restrict__ my_buckets = local_buckets[cpu].data();
 
         for (NodeID u = from; u < to; ++u) {
           const auto bucket = find_bucket(u);
-          const NodeID new_u = permutation[u] + global_buckets[bucket] + my_buckets[bucket];
-          permutation[u] = new_u;
-          inverse_permutation[new_u] = u;
+          const NodeID new_u = perm_ptr[u] + my_buckets[bucket];
+          perm_ptr[u] = new_u;
+          inv_ptr[new_u] = u;
         }
       }
   );
@@ -179,30 +186,36 @@ void build_permuted_graph(
   KASSERT(n + 1 == new_nodes.size());
 
   // Build p_nodes (exclusive prefix sum) and p_node_weights
-  new_nodes[0] = 0;
+  const GraphEdgeID *__restrict__ old_nodes_ptr = old_nodes.data();
+  const GraphNodeID *__restrict__ old_edges_ptr = old_edges.data();
+  const NodeID *__restrict__ new_to_old_ptr = permutations.new_to_old.data();
+  const NodeID *__restrict__ old_to_new_ptr = permutations.old_to_new.data();
+  GraphEdgeID *__restrict__ new_nodes_ptr = new_nodes.data();
+  GraphNodeID *__restrict__ new_edges_ptr = new_edges.data();
+
+  new_nodes_ptr[0] = 0;
   if (is_node_weighted) {
-    tbb::parallel_for<GraphNodeID>(0, n, [&](const GraphNodeID u) {
-      const auto old_u = permutations.new_to_old[u];
-      new_nodes[u + 1] = old_nodes[old_u + 1] - old_nodes[old_u];
-      new_node_weights[u] = old_node_weights[old_u];
+    const GraphNodeWeight *__restrict__ old_nw_ptr = old_node_weights.data();
+    GraphNodeWeight *__restrict__ new_nw_ptr = new_node_weights.data();
+    tbb::parallel_for(tbb::blocked_range<GraphNodeID>(0, n), [&](const auto &range) {
+      for (GraphNodeID u = range.begin(); u != range.end(); ++u) {
+        const auto old_u = new_to_old_ptr[u];
+        new_nodes_ptr[u + 1] = old_nodes_ptr[old_u + 1] - old_nodes_ptr[old_u];
+        new_nw_ptr[u] = old_nw_ptr[old_u];
+      }
     });
   } else {
-    tbb::parallel_for<GraphNodeID>(0, n, [&](const GraphNodeID u) {
-      const auto old_u = permutations.new_to_old[u];
-      new_nodes[u + 1] = old_nodes[old_u + 1] - old_nodes[old_u];
+    tbb::parallel_for(tbb::blocked_range<GraphNodeID>(0, n), [&](const auto &range) {
+      for (GraphNodeID u = range.begin(); u != range.end(); ++u) {
+        const auto old_u = new_to_old_ptr[u];
+        new_nodes_ptr[u + 1] = old_nodes_ptr[old_u + 1] - old_nodes_ptr[old_u];
+      }
     });
   }
 
   parallel::prefix_sum(new_nodes.begin(), new_nodes.end(), new_nodes.begin());
 
   // Build p_edges, p_edge_weights forward sequentially using local offset register
-  const GraphEdgeID *__restrict__ old_nodes_ptr = old_nodes.data();
-  const GraphNodeID *__restrict__ old_edges_ptr = old_edges.data();
-  const NodeID *__restrict__ new_to_old_ptr = permutations.new_to_old.data();
-  const NodeID *__restrict__ old_to_new_ptr = permutations.old_to_new.data();
-  const GraphEdgeID *__restrict__ new_nodes_ptr = new_nodes.data();
-  GraphNodeID *__restrict__ new_edges_ptr = new_edges.data();
-
   if (is_edge_weighted) {
     const GraphEdgeWeight *__restrict__ old_ew_ptr = old_edge_weights.data();
     GraphEdgeWeight *__restrict__ new_ew_ptr = new_edge_weights.data();
@@ -214,12 +227,6 @@ void build_permuted_graph(
         GraphEdgeID p_e = new_nodes_ptr[u];
 
         for (GraphEdgeID e = e_begin; e < e_end; ++e) {
-          if (e + 8 < e_end) {
-            const auto pf_v = old_edges_ptr[e + 8];
-            if (!has_ghost_nodes || pf_v < n) {
-              __builtin_prefetch(&old_to_new_ptr[pf_v], 0, 1);
-            }
-          }
           const auto v = old_edges_ptr[e];
           new_edges_ptr[p_e] = (!has_ghost_nodes || v < n) ? old_to_new_ptr[v] : v;
           new_ew_ptr[p_e] = old_ew_ptr[e];
@@ -236,12 +243,6 @@ void build_permuted_graph(
         GraphEdgeID p_e = new_nodes_ptr[u];
 
         for (GraphEdgeID e = e_begin; e < e_end; ++e) {
-          if (e + 8 < e_end) {
-            const auto pf_v = old_edges_ptr[e + 8];
-            if (!has_ghost_nodes || pf_v < n) {
-              __builtin_prefetch(&old_to_new_ptr[pf_v], 0, 1);
-            }
-          }
           const auto v = old_edges_ptr[e];
           new_edges_ptr[p_e] = (!has_ghost_nodes || v < n) ? old_to_new_ptr[v] : v;
           ++p_e;
