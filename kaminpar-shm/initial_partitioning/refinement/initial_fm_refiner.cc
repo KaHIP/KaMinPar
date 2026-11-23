@@ -376,18 +376,70 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
   _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
 
   std::int64_t total_external_weight = 0;
-  for (NodeID i = 0; i < num_chunks; ++i) {
-    const NodeID chunk = _chunks[i];
-    const auto &permutation = _permutations.get(_rand);
-    if (chunk + kChunkSize <= n) {
-      for (const NodeID offset : permutation) {
-        total_external_weight += insert_node(p_graph, chunk + offset);
+  const auto &g = *_graph;
+  const EdgeID *__restrict__ g_nodes = g.raw_nodes().data();
+  const NodeID *__restrict__ g_edges = g.raw_edges().data();
+  const BlockID *__restrict__ part = p_graph.raw_partition().data();
+  const EdgeWeight *__restrict__ wd = _weighted_degrees.data();
+
+  if (g.is_edge_weighted()) {
+    const EdgeWeight *__restrict__ g_ew = g.raw_edge_weights().data();
+    const auto process_node = [&](const NodeID u) {
+      const BlockID u_block = part[u];
+      EdgeWeight ext = 0;
+      const EdgeID e_begin = g_nodes[u];
+      const EdgeID e_end = g_nodes[u + 1];
+      for (EdgeID e = e_begin; e < e_end; ++e) {
+        ext += (part[g_edges[e]] != u_block) ? g_ew[e] : 0;
       }
-    } else {
-      for (const NodeID offset : permutation) {
-        const NodeID u = chunk + offset;
-        if (u < n) {
-          total_external_weight += insert_node(p_graph, u);
+      if (ext != 0) {
+        _queues[u_block].push(u, wd[u] - 2 * ext);
+        total_external_weight += ext;
+      }
+    };
+    for (NodeID i = 0; i < num_chunks; ++i) {
+      const NodeID chunk = _chunks[i];
+      const auto &permutation = _permutations.get(_rand);
+      if (chunk + kChunkSize <= n) {
+        for (const NodeID offset : permutation) {
+          process_node(chunk + offset);
+        }
+      } else {
+        for (const NodeID offset : permutation) {
+          const NodeID u = chunk + offset;
+          if (u < n) {
+            process_node(u);
+          }
+        }
+      }
+    }
+  } else {
+    const auto process_node = [&](const NodeID u) {
+      const BlockID u_block = part[u];
+      EdgeWeight ext = 0;
+      const EdgeID e_begin = g_nodes[u];
+      const EdgeID e_end = g_nodes[u + 1];
+      for (EdgeID e = e_begin; e < e_end; ++e) {
+        ext += (part[g_edges[e]] != u_block);
+      }
+      if (ext != 0) {
+        _queues[u_block].push(u, wd[u] - 2 * ext);
+        total_external_weight += ext;
+      }
+    };
+    for (NodeID i = 0; i < num_chunks; ++i) {
+      const NodeID chunk = _chunks[i];
+      const auto &permutation = _permutations.get(_rand);
+      if (chunk + kChunkSize <= n) {
+        for (const NodeID offset : permutation) {
+          process_node(chunk + offset);
+        }
+      } else {
+        for (const NodeID offset : permutation) {
+          const NodeID u = chunk + offset;
+          if (u < n) {
+            process_node(u);
+          }
         }
       }
     }
