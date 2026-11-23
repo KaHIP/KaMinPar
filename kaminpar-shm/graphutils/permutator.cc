@@ -265,6 +265,10 @@ std::vector<BlockWeight> compute_nonisolated_min_block_weights(
 PartitionedGraph assign_isolated_nodes(
     PartitionedGraph p_graph, const NodeID num_isolated_nodes, const PartitionContext &p_ctx
 ) {
+  if (num_isolated_nodes == 0) {
+    return p_graph;
+  }
+
   const Graph &graph = p_graph.graph();
   const NodeID num_nonisolated_nodes = graph.n() - num_isolated_nodes;
 
