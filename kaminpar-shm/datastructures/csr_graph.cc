@@ -7,9 +7,15 @@
  ******************************************************************************/
 #include "kaminpar-shm/datastructures/csr_graph.h"
 
+#include <algorithm>
+#include <array>
+#include <limits>
 #include <numeric>
+#include <utility>
 
+#include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for.h>
 #include <tbb/parallel_reduce.h>
 
 #include "kaminpar-shm/datastructures/graph.h"
@@ -18,6 +24,50 @@
 #include "kaminpar-common/parallel/algorithm.h"
 
 namespace kaminpar::shm {
+
+namespace {
+
+template <typename T>
+std::pair<T, T> parallel_sum_and_max(const StaticArray<T> &values) {
+  const T *__restrict__ data = values.data();
+  return tbb::parallel_reduce(
+      tbb::blocked_range<std::size_t>(0, values.size()),
+      std::pair<T, T>{0, std::numeric_limits<T>::min()},
+      [data](const auto &r, std::pair<T, T> acc) {
+        T sum = acc.first;
+        T max_val = acc.second;
+        for (std::size_t i = r.begin(); i != r.end(); ++i) {
+          const T v = data[i];
+          sum += v;
+          if (v > max_val) {
+            max_val = v;
+          }
+        }
+        return std::pair<T, T>{sum, max_val};
+      },
+      [](const auto &a, const auto &b) {
+        return std::pair<T, T>{a.first + b.first, std::max(a.second, b.second)};
+      }
+  );
+}
+
+template <typename T>
+std::pair<T, T> seq_sum_and_max(const StaticArray<T> &values) {
+  const T *__restrict__ data = values.data();
+  const std::size_t size = values.size();
+  T sum = 0;
+  T max_val = std::numeric_limits<T>::min();
+  for (std::size_t i = 0; i < size; ++i) {
+    const T v = data[i];
+    sum += v;
+    if (v > max_val) {
+      max_val = v;
+    }
+  }
+  return {sum, max_val};
+}
+
+} // namespace
 
 CSRGraph::CSRGraph()
     : _nodes(static_cast<std::size_t>(1), static_cast<EdgeID>(0)),
@@ -81,21 +131,60 @@ CSRGraph::CSRGraph(
     _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;
   } else {
-    _total_node_weight = parallel::accumulate(_node_weights, static_cast<NodeWeight>(0));
-    _max_node_weight = parallel::max_element(_node_weights);
+    std::tie(_total_node_weight, _max_node_weight) = parallel_sum_and_max(_node_weights);
   }
 
   if (_edge_weights.empty()) {
     _total_edge_weight = static_cast<EdgeWeight>(m());
     _max_edge_weight = 1;
   } else {
-    _total_edge_weight = parallel::accumulate(_edge_weights, static_cast<EdgeWeight>(0));
-    _max_edge_weight = parallel::max_element(_edge_weights);
+    std::tie(_total_edge_weight, _max_edge_weight) = parallel_sum_and_max(_edge_weights);
   }
 
-  _max_degree = parallel::max_difference(_nodes.begin(), _nodes.end());
+  if (_sorted) {
+    constexpr std::size_t kNumBuckets = kNumberOfDegreeBuckets<NodeID> + 1;
+    struct LocalDegInfo {
+      std::array<NodeID, kNumBuckets> buckets{};
+      NodeID max_deg = 0;
+    };
+    tbb::enumerable_thread_specific<LocalDegInfo> deg_ets;
+    const EdgeID *__restrict__ nodes_ptr = _nodes.data();
+    const NodeID num_nodes = n();
 
-  init_degree_buckets();
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_nodes), [&](const auto &r) {
+      auto &local = deg_ets.local();
+      NodeID mx = local.max_deg;
+      for (NodeID u = r.begin(); u != r.end(); ++u) {
+        const NodeID deg = static_cast<NodeID>(nodes_ptr[u + 1] - nodes_ptr[u]);
+        ++local.buckets[degree_bucket(deg) + 1];
+        if (deg > mx) {
+          mx = deg;
+        }
+      }
+      local.max_deg = mx;
+    });
+
+    std::fill(_buckets.begin(), _buckets.end(), 0);
+    NodeID max_deg = 0;
+    for (const auto &local : deg_ets) {
+      if (local.max_deg > max_deg) {
+        max_deg = local.max_deg;
+      }
+      for (std::size_t i = 0; i < kNumBuckets; ++i) {
+        _buckets[i] += local.buckets[i];
+      }
+    }
+    _max_degree = max_deg;
+    auto last_nonempty_bucket =
+        std::find_if(_buckets.rbegin(), _buckets.rend(), [](const auto c) { return c > 0; });
+    _number_of_buckets = (last_nonempty_bucket == _buckets.rend())
+                             ? 0
+                             : std::distance(_buckets.begin(), (last_nonempty_bucket + 1).base());
+    std::partial_sum(_buckets.begin(), _buckets.end(), _buckets.begin());
+  } else {
+    _max_degree = parallel::max_difference(_nodes.begin(), _nodes.end());
+    init_degree_buckets();
+  }
 }
 
 CSRGraph::CSRGraph(
@@ -117,18 +206,14 @@ CSRGraph::CSRGraph(
     _total_node_weight = static_cast<NodeWeight>(n());
     _max_node_weight = 1;
   } else {
-    _total_node_weight =
-        std::accumulate(_node_weights.begin(), _node_weights.end(), static_cast<NodeWeight>(0));
-    _max_node_weight = *std::max_element(_node_weights.begin(), _node_weights.end());
+    std::tie(_total_node_weight, _max_node_weight) = seq_sum_and_max(_node_weights);
   }
 
   if (_edge_weights.empty()) {
     _total_edge_weight = static_cast<EdgeWeight>(m());
     _max_edge_weight = 1;
   } else {
-    _total_edge_weight =
-        std::accumulate(_edge_weights.begin(), _edge_weights.end(), static_cast<EdgeWeight>(0));
-    _max_edge_weight = *std::max_element(_edge_weights.begin(), _edge_weights.end());
+    std::tie(_total_edge_weight, _max_edge_weight) = seq_sum_and_max(_edge_weights);
   }
 
   // TODO: Use a sequential routine to initialize degree buckets since work isolation can otherwise
