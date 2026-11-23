@@ -53,20 +53,20 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   }
 
   // Otherwise, coarsen further and proceed recursively
-  auto coarsener = factory::create_coarsener(_input_ctx);
+  Context small_ctx = _input_ctx;
+  small_ctx.partition.n = graph->n();
+  small_ctx.partition.m = graph->m();
+  small_ctx.parallel.num_threads = static_cast<int>(num_threads);
+
+  auto coarsener = factory::create_coarsener(small_ctx, _input_ctx.partition);
   coarsener->initialize(graph);
 
   const bool shrunk = coarsener->coarsen();
   PartitionedGraph p_graph = split_and_join(coarsener.get(), p_ctx, !shrunk, num_threads);
   p_graph = coarsener->uncoarsen(std::move(p_graph));
 
-  // The Context object is used to pre-allocate memory for the finest graph of the input hierarchy
-  // Since this refiner is never used for the finest graph, we need to adjust the context to
-  // prevent overallocation
-  Context small_ctx = _input_ctx;
   small_ctx.partition.n = p_graph.graph().n();
   small_ctx.partition.m = p_graph.graph().m();
-  small_ctx.parallel.num_threads = static_cast<int>(num_threads);
 
   p_ctx = create_kway_context(_input_ctx, p_graph);
   auto refiner = factory::create_refiner(small_ctx);
