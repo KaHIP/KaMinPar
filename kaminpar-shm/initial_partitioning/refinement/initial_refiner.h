@@ -8,6 +8,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -23,6 +24,9 @@ public:
 
   virtual void init(const CSRGraph &graph) = 0;
   virtual bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) = 0;
+  [[nodiscard]] virtual std::optional<EdgeWeight> last_edge_cut() const {
+    return std::nullopt;
+  }
 };
 
 class InitialMultiRefiner : public InitialRefiner {

@@ -209,7 +209,8 @@ void InitialPoolBipartitioner::run_bipartitioner(const std::size_t i) {
   );
   _refiner->refine(p_graph, *_p_ctx);
 
-  const EdgeWeight current_cut = metrics::edge_cut_seq(p_graph);
+  const auto cached_cut = _refiner->last_edge_cut();
+  const EdgeWeight current_cut = cached_cut ? *cached_cut : metrics::edge_cut_seq(p_graph);
   const double current_imbalance = metrics::imbalance(p_graph);
   const bool current_feasible = metrics::is_feasible(p_graph, *_p_ctx);
 
