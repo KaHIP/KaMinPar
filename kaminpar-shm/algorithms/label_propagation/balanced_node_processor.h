@@ -82,7 +82,7 @@ public:
       return selected;
     });
 
-    if (_state.commit(_graph, u, from, to, u_weight)) {
+    if (to != from && _state.commit(_graph, u, from, to, u_weight)) {
       ++local.stats.moved;
     }
   }
