@@ -352,66 +352,78 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
     SubgraphMemory &subgraph_memory
 ) {
   const NodeID n = p_graph.graph().n();
+  const BlockID k = p_graph.k();
 
   START_TIMER("Allocation");
-  StaticArray<NodeID> mapping(n);
-  StaticArray<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
-  StaticArray<NodeID> bucket_index(p_graph.k());
-  ScalableVector<shm::Graph> subgraphs(p_graph.k());
+  StaticArray<NodeID> mapping(n, static_array::noinit);
+  StaticArray<SubgraphMemoryStartPosition> start_positions(k + 1);
+  StaticArray<NodeID> bucket_index(k);
+  ScalableVector<shm::Graph> subgraphs(k);
   STOP_TIMER();
 
-  // count number of nodes and edges in each block
+  // count number of nodes and edges in each block (zero-atomic deterministic scatter)
   START_TIMER("Count block size");
-  tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
-    return ScalableVector<NodeID>(p_graph.k());
-  }};
-  tbb::enumerable_thread_specific<ScalableVector<EdgeID>> tl_num_edges_in_block{[&] {
-    return ScalableVector<EdgeID>(p_graph.k());
-  }};
+  const std::size_t cpus =
+      n > 0 ? std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n) : 1;
+  CacheAlignedVector<std::vector<NodeID>> local_nodes(cpus + 1, std::vector<NodeID>(k, 0));
+  CacheAlignedVector<std::vector<EdgeID>> local_edges(cpus, std::vector<EdgeID>(k, 0));
+  const BlockID *__restrict__ part = p_graph.raw_partition().data();
 
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()), [&](auto &r) {
-    auto &num_nodes_in_block = tl_num_nodes_in_block.local();
-    auto &num_edges_in_block = tl_num_edges_in_block.local();
+  if (n > 0) {
+    parallel::deterministic_for<NodeID>(
+        0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+          NodeID *__restrict__ num_nodes_in_block = local_nodes[cpu + 1].data();
+          EdgeID *__restrict__ num_edges_in_block = local_edges[cpu].data();
 
-    for (NodeID u = r.begin(); u != r.end(); ++u) {
-      const BlockID u_block = p_graph.block(u);
-      ++num_nodes_in_block[u_block];
-      graph.adjacent_nodes(u, [&](const NodeID v) {
-        if (p_graph.block(v) == u_block) {
-          ++num_edges_in_block[u_block];
+          for (NodeID u = from; u < to; ++u) {
+            const BlockID u_block = part[u];
+            ++num_nodes_in_block[u_block];
+            graph.adjacent_nodes(u, [&](const NodeID v) {
+              if (part[v] == u_block) {
+                ++num_edges_in_block[u_block];
+              }
+            });
+          }
         }
-      });
-    }
-  });
+    );
+  }
   STOP_TIMER();
 
   START_TIMER("Merge block sizes");
-  tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
-    NodeID num_nodes = partitioning::compute_final_k(
-        b, p_graph.k(), input_k
-    ); // padding for sequential subgraph extraction
-    EdgeID num_edges = 0;
-    for (auto &local_num_nodes : tl_num_nodes_in_block) {
-      num_nodes += local_num_nodes[b];
+  for (BlockID b = 0; b < k; ++b) {
+    NodeID sum_nodes = 0;
+    EdgeID sum_edges = 0;
+    for (std::size_t cpu = 0; cpu < cpus; ++cpu) {
+      const NodeID cnt = local_nodes[cpu + 1][b];
+      local_nodes[cpu][b] = sum_nodes;
+      sum_nodes += cnt;
+      sum_edges += local_edges[cpu][b];
     }
-    for (auto &local_num_edges : tl_num_edges_in_block) {
-      num_edges += local_num_edges[b];
-    }
-    start_positions[b + 1].nodes_start_pos = num_nodes;
-    start_positions[b + 1].edges_start_pos = num_edges;
-  });
+    bucket_index[b] = sum_nodes;
+    start_positions[b + 1].nodes_start_pos =
+        sum_nodes + partitioning::compute_final_k(b, k, input_k);
+    start_positions[b + 1].edges_start_pos = sum_edges;
+  }
   parallel::prefix_sum(start_positions.begin(), start_positions.end(), start_positions.begin());
   STOP_TIMER();
 
-  // build temporary bucket array in nodes array
+  // build temporary bucket array in nodes array without atomics
   START_TIMER("Build bucket array");
-  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-    const BlockID b = p_graph.block(u);
-    const NodeID pos_in_subgraph = __atomic_fetch_add(&bucket_index[b], 1, __ATOMIC_RELAXED);
-    const NodeID pos = start_positions[b].nodes_start_pos + pos_in_subgraph;
-    subgraph_memory.nodes[pos] = u;
-    mapping[u] = pos_in_subgraph; // concurrent random access write
-  });
+  if (n > 0) {
+    EdgeID *__restrict__ sm_nodes = subgraph_memory.nodes.data();
+    NodeID *__restrict__ map_ptr = mapping.data();
+    parallel::deterministic_for<NodeID>(
+        0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+          NodeID *__restrict__ cur_idx = local_nodes[cpu].data();
+          for (NodeID u = from; u < to; ++u) {
+            const BlockID b = part[u];
+            const NodeID pos_in_subgraph = cur_idx[b]++;
+            sm_nodes[start_positions[b].nodes_start_pos + pos_in_subgraph] = u;
+            map_ptr[u] = pos_in_subgraph;
+          }
+        }
+    );
+  }
   STOP_TIMER();
 
   const bool is_node_weighted = p_graph.graph().is_node_weighted();
