@@ -7,11 +7,16 @@
  ******************************************************************************/
 #include "kaminpar-shm/partitioning/helper.h"
 
+#include <algorithm>
+#include <numeric>
+#include <vector>
+
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/heap_profiler.h"
 #include "kaminpar-common/math.h"
 #include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/parallel/atomic.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::partitioning {
@@ -275,65 +280,85 @@ void extend_partition_lazy_extraction(
     SCOPED_HEAP_PROFILER("Bipartitioning");
     tbb::enumerable_thread_specific<BipartitionTimingInfo> dbg_timings_ets;
 
-    tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
-      const BlockID final_kb = compute_final_k(b, k, input_ctx.partition.k);
-      const BlockID subgraph_k = (desired_k == input_ctx.partition.k) ? final_kb : desired_k / k;
-      if (subgraph_k <= 1) {
-        return;
-      }
-
-      auto &timing = dbg_timings_ets.local();
-      auto &subgraph_memory = extraction_mem_pool_ets.local();
-
-      const NodeID num_block_nodes = block_nodes_offset[b + 1] - block_nodes_offset[b];
-      const NodeID subgraph_memory_n = num_block_nodes + final_kb;
-      const EdgeID num_block_edges = block_num_edges[b];
-
-      if (subgraph_memory.nodes.size() < subgraph_memory_n) {
-        subgraph_memory.nodes.resize(subgraph_memory_n, static_array::seq, static_array::noinit);
-
-        if (p_graph.graph().is_node_weighted()) {
-          subgraph_memory.node_weights.resize(
-              subgraph_memory_n, static_array::seq, static_array::noinit
-          );
-        }
-      }
-
-      if (subgraph_memory.edges.size() < num_block_edges) {
-        subgraph_memory.edges.resize(num_block_edges, static_array::seq, static_array::noinit);
-
-        if (p_graph.graph().is_edge_weighted()) {
-          subgraph_memory.edge_weights.resize(
-              num_block_edges, static_array::seq, static_array::noinit
-          );
-        }
-      }
-
-      const StaticArray<NodeID> local_block_nodes(
-          num_block_nodes, block_nodes.data() + block_nodes_offset[b]
-      );
-      const auto subgraph =
-          graph::extract_subgraph(p_graph, b, local_block_nodes, mapping, subgraph_memory);
-
-      DBG << "initial extend_partition_recursive() for block " << b << ", final k " << final_kb
-          << ", subgraph k " << subgraph_k << ", weight " << p_graph.block_weight(b) << " of "
-          << subgraph.total_node_weight();
-
-      extend_partition_recursive(
-          subgraph,
-          subgraph_partitions[b],
-          0,
-          b,
-          subgraph_k,
-          p_graph.k(),
-          input_ctx,
-          {.nodes_start_pos = 0, .edges_start_pos = 0},
-          subgraph_memory,
-          tmp_extraction_mem_pool_ets.local(),
-          bipartitioner_pool,
-          &timing
-      );
+    std::vector<BlockID> block_order(k);
+    std::iota(block_order.begin(), block_order.end(), 0);
+    std::sort(block_order.begin(), block_order.end(), [&](const BlockID a, const BlockID b) {
+      return block_num_edges[a] > block_num_edges[b];
     });
+
+    parallel::Atomic<BlockID> next_idx = 0;
+    tbb::parallel_for(
+        tbb::blocked_range<BlockID>(0, k, 1),
+        [&](const auto &r) {
+          auto &timing = dbg_timings_ets.local();
+          auto &subgraph_memory = extraction_mem_pool_ets.local();
+          auto &tmp_mem = tmp_extraction_mem_pool_ets.local();
+
+          for (BlockID i = r.begin(); i != r.end(); ++i) {
+            const BlockID b = block_order[next_idx.fetch_add(1, std::memory_order_relaxed)];
+            const BlockID final_kb = compute_final_k(b, k, input_ctx.partition.k);
+            const BlockID subgraph_k =
+                (desired_k == input_ctx.partition.k) ? final_kb : desired_k / k;
+            if (subgraph_k <= 1) {
+              continue;
+            }
+
+            const NodeID num_block_nodes = block_nodes_offset[b + 1] - block_nodes_offset[b];
+            const NodeID subgraph_memory_n = num_block_nodes + final_kb;
+            const EdgeID num_block_edges = block_num_edges[b];
+
+            if (subgraph_memory.nodes.size() < subgraph_memory_n) {
+              subgraph_memory.nodes.resize(
+                  subgraph_memory_n, static_array::seq, static_array::noinit
+              );
+
+              if (p_graph.graph().is_node_weighted()) {
+                subgraph_memory.node_weights.resize(
+                    subgraph_memory_n, static_array::seq, static_array::noinit
+                );
+              }
+            }
+
+            if (subgraph_memory.edges.size() < num_block_edges) {
+              subgraph_memory.edges.resize(
+                  num_block_edges, static_array::seq, static_array::noinit
+              );
+
+              if (p_graph.graph().is_edge_weighted()) {
+                subgraph_memory.edge_weights.resize(
+                    num_block_edges, static_array::seq, static_array::noinit
+                );
+              }
+            }
+
+            const StaticArray<NodeID> local_block_nodes(
+                num_block_nodes, block_nodes.data() + block_nodes_offset[b]
+            );
+            const auto subgraph =
+                graph::extract_subgraph(p_graph, b, local_block_nodes, mapping, subgraph_memory);
+
+            DBG << "initial extend_partition_recursive() for block " << b << ", final k "
+                << final_kb << ", subgraph k " << subgraph_k << ", weight " << p_graph.block_weight(b)
+                << " of " << subgraph.total_node_weight();
+
+            extend_partition_recursive(
+                subgraph,
+                subgraph_partitions[b],
+                0,
+                b,
+                subgraph_k,
+                p_graph.k(),
+                input_ctx,
+                {.nodes_start_pos = 0, .edges_start_pos = 0},
+                subgraph_memory,
+                tmp_mem,
+                bipartitioner_pool,
+                &timing
+            );
+          }
+        },
+        tbb::simple_partitioner()
+    );
   };
 
   TIMED_SCOPE("Copy subgraph partitions") {
@@ -402,36 +427,52 @@ void extend_partition(
   TIMED_SCOPE("Bipartitioning") {
     SCOPED_HEAP_PROFILER("Bipartitioning");
 
-    tbb::parallel_for<BlockID>(0, subgraphs.size(), [&](const BlockID b) {
-      BipartitionTimingInfo &timing = timings_ets.local();
-
-      const auto &subgraph = subgraphs[b];
-      const BlockID final_kb = compute_final_k(b, p_graph.k(), input_ctx.partition.k);
-
-      const BlockID subgraph_k =
-          (desired_k == input_ctx.partition.k) ? final_kb : desired_k / p_graph.k();
-
-      if (subgraph_k > 1) {
-        DBG << "initial extend_partition_recursive() for block " << b << ", final k " << final_kb
-            << ", subgraph k " << subgraph_k << ", weight " << p_graph.block_weight(b) << " /// "
-            << subgraph.total_node_weight();
-
-        extend_partition_recursive(
-            subgraph,
-            subgraph_partitions[b],
-            0,
-            b,
-            subgraph_k,
-            p_graph.k(),
-            input_ctx,
-            positions[b],
-            subgraph_memory,
-            tmp_extraction_mem_pool_ets.local(),
-            bipartitioner_pool,
-            &timing
-        );
-      }
+    const BlockID num_subgraphs = static_cast<BlockID>(subgraphs.size());
+    std::vector<BlockID> block_order(num_subgraphs);
+    std::iota(block_order.begin(), block_order.end(), 0);
+    std::sort(block_order.begin(), block_order.end(), [&](const BlockID a, const BlockID b) {
+      return subgraphs[a].m() > subgraphs[b].m();
     });
+
+    parallel::Atomic<BlockID> next_idx = 0;
+    tbb::parallel_for(
+        tbb::blocked_range<BlockID>(0, num_subgraphs, 1),
+        [&](const auto &r) {
+          BipartitionTimingInfo &timing = timings_ets.local();
+          auto &tmp_mem = tmp_extraction_mem_pool_ets.local();
+
+          for (BlockID i = r.begin(); i != r.end(); ++i) {
+            const BlockID b = block_order[next_idx.fetch_add(1, std::memory_order_relaxed)];
+            const auto &subgraph = subgraphs[b];
+            const BlockID final_kb = compute_final_k(b, p_graph.k(), input_ctx.partition.k);
+
+            const BlockID subgraph_k =
+                (desired_k == input_ctx.partition.k) ? final_kb : desired_k / p_graph.k();
+
+            if (subgraph_k > 1) {
+              DBG << "initial extend_partition_recursive() for block " << b << ", final k "
+                  << final_kb << ", subgraph k " << subgraph_k << ", weight "
+                  << p_graph.block_weight(b) << " /// " << subgraph.total_node_weight();
+
+              extend_partition_recursive(
+                  subgraph,
+                  subgraph_partitions[b],
+                  0,
+                  b,
+                  subgraph_k,
+                  p_graph.k(),
+                  input_ctx,
+                  positions[b],
+                  subgraph_memory,
+                  tmp_mem,
+                  bipartitioner_pool,
+                  &timing
+              );
+            }
+          }
+        },
+        tbb::simple_partitioner()
+    );
   };
 
   TIMED_SCOPE("Copy subgraph partitions") {

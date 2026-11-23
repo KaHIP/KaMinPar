@@ -183,23 +183,25 @@ bool InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
   KASSERT(p_graph.k() == 2u);
   KASSERT(_p_ctx->k == 2u);
 
-  // Avoid edge cut computation if we only want to do one iteration anyways
+  // Avoid redundant edge cut scans by computing initial cut directly inside init_pq()
   if (_r_ctx.num_iterations == 1) {
-    round(p_graph);
+    EdgeWeight initial_edge_cut = 0;
+    const EdgeWeight delta = round(p_graph, &initial_edge_cut);
+    _last_edge_cut = initial_edge_cut + delta;
     return false;
   }
 
-  const EdgeWeight initial_edge_cut = metrics::edge_cut_seq(p_graph);
+  EdgeWeight initial_edge_cut = 0;
+  EdgeWeight cur_edge_cut = round(p_graph, &initial_edge_cut);
 
   // If there is no improvement possible, abort early
   if (initial_edge_cut == 0) {
+    _last_edge_cut = 0;
     return false;
   }
 
   EdgeWeight prev_edge_cut = initial_edge_cut;
-  EdgeWeight cur_edge_cut = prev_edge_cut;
-
-  cur_edge_cut += round(p_graph); // always do at least one round
+  cur_edge_cut += initial_edge_cut;
   for (std::size_t it = 1;
        0 < cur_edge_cut && it < _r_ctx.num_iterations && !abort(prev_edge_cut, cur_edge_cut);
        ++it) {
@@ -207,6 +209,7 @@ bool InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
     cur_edge_cut += round(p_graph);
   }
 
+  _last_edge_cut = cur_edge_cut;
   return cur_edge_cut < initial_edge_cut;
 }
 
@@ -219,7 +222,7 @@ bool InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
 EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::round(
-    PartitionedCSRGraph &p_graph
+    PartitionedCSRGraph &p_graph, EdgeWeight *out_initial_cut
 ) {
   DBG << "Initial refiner initialized with n=" << p_graph.graph().n()
       << ", m=" << p_graph.graph().m() << ", k=" << p_graph.k();
@@ -236,7 +239,13 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 
   _stopping_policy.reset();
 
-  init_pq(p_graph);
+  const EdgeWeight computed_initial_cut = init_pq(p_graph);
+  if (out_initial_cut != nullptr) {
+    *out_initial_cut = computed_initial_cut;
+  }
+  if (computed_initial_cut == 0) {
+    return 0;
+  }
 
   std::size_t active = 0; // block from which we select a node for movement
 
@@ -343,13 +352,14 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
-void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::init_pq(
+EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::init_pq(
     const PartitionedCSRGraph &p_graph
 ) {
   KASSERT(_queues[0].empty());
   KASSERT(_queues[1].empty());
 
-  const NodeID num_chunks = _graph->n() / kChunkSize + 1;
+  const NodeID n = _graph->n();
+  const NodeID num_chunks = n / kChunkSize + 1;
 
   _chunks.clear();
   if (_chunks.size() < num_chunks) {
@@ -365,29 +375,56 @@ void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
   );
   _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
 
+  std::int64_t total_external_weight = 0;
   for (NodeID i = 0; i < num_chunks; ++i) {
     const NodeID chunk = _chunks[i];
     const auto &permutation = _permutations.get(_rand);
-    for (const NodeID i : permutation) {
-      const NodeID u = chunk + i;
-      if (u < _graph->n()) {
-        insert_node(p_graph, u);
+    if (chunk + kChunkSize <= n) {
+      for (const NodeID offset : permutation) {
+        total_external_weight += insert_node(p_graph, chunk + offset);
+      }
+    } else {
+      for (const NodeID offset : permutation) {
+        const NodeID u = chunk + offset;
+        if (u < n) {
+          total_external_weight += insert_node(p_graph, u);
+        }
       }
     }
   }
 
   KASSERT(validate_pqs(p_graph), "inconsistent PQ state after init", assert::heavy);
+  return static_cast<EdgeWeight>(total_external_weight / 2);
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
-void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::insert_node(
+EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::insert_node(
     const PartitionedCSRGraph &p_graph, const NodeID u
 ) {
-  const EdgeWeight gain = compute_gain_from_scratch(p_graph, u);
   const BlockID u_block = p_graph.block(u);
-  if (_weighted_degrees[u] != gain) {
+  EdgeWeight weighted_external_degree = 0;
+  const auto &g = *_graph;
+  const EdgeID e_begin = g.raw_nodes()[u];
+  const EdgeID e_end = g.raw_nodes()[u + 1];
+  const NodeID *__restrict__ edges = g.raw_edges().data();
+  const BlockID *__restrict__ part = p_graph.raw_partition().data();
+
+  if (g.is_edge_weighted()) {
+    const EdgeWeight *__restrict__ ew = g.raw_edge_weights().data();
+    for (EdgeID e = e_begin; e < e_end; ++e) {
+      weighted_external_degree += (part[edges[e]] != u_block) ? ew[e] : 0;
+    }
+  } else {
+    for (EdgeID e = e_begin; e < e_end; ++e) {
+      weighted_external_degree += (part[edges[e]] != u_block);
+    }
+  }
+
+  if (weighted_external_degree != 0) {
+    const EdgeWeight gain = _weighted_degrees[u] - 2 * weighted_external_degree;
     _queues[u_block].push(u, gain);
   }
+  return weighted_external_degree;
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
@@ -405,10 +442,20 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
 void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::
     init_weighted_degrees() {
-  for (const NodeID u : _graph->nodes()) {
+  const NodeID n = _graph->n();
+  const EdgeID *__restrict__ nodes = _graph->raw_nodes().data();
+  if (!_graph->is_edge_weighted()) {
+    for (NodeID u = 0; u < n; ++u) {
+      _weighted_degrees[u] = static_cast<EdgeWeight>(nodes[u + 1] - nodes[u]);
+    }
+    return;
+  }
+
+  const EdgeWeight *__restrict__ ew = _graph->raw_edge_weights().data();
+  for (NodeID u = 0; u < n; ++u) {
     EdgeWeight weighted_degree = 0;
-    for (const EdgeID e : _graph->incident_edges(u)) {
-      weighted_degree += _graph->edge_weight(e);
+    for (EdgeID e = nodes[u]; e < nodes[u + 1]; ++e) {
+      weighted_degree += ew[e];
     }
     _weighted_degrees[u] = weighted_degree;
   }
