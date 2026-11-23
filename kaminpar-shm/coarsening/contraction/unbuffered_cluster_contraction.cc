@@ -6,6 +6,7 @@
 #include "kaminpar-shm/coarsening/contraction/unbuffered_cluster_contraction.h"
 
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <optional>
 #include <utility>
@@ -185,36 +186,25 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     }
   };
 
-  // We keep track of the new coarse node ID for the next coarse node to be remapped and its edge
-  // offset inside a 128-bit integer. We atomically increment it with double-width compare-and-swap
-  // instructions.
-  union alignas(16) NextCoarseNodeInfo {
-    __uint128_t val;
-    struct {
-      std::uint64_t c_u;
-      std::uint64_t edge;
-    } info;
+  struct alignas(64) NextCoarseNodeInfo {
+    std::atomic_flag lock = ATOMIC_FLAG_INIT;
+    std::uint64_t c_u = 0;
+    std::uint64_t edge = 0;
   };
 
-  NextCoarseNodeInfo next_coarse_node_info = {.info = {.c_u = 0, .edge = 0}};
+  NextCoarseNodeInfo next_coarse_node_info;
   const auto atomic_fetch_next_coarse_node_info = [&](const std::uint64_t nodes,
                                                       const std::uint64_t degree) {
-    NextCoarseNodeInfo expected = {.val = 0};
-
-    while (true) {
-      const NextCoarseNodeInfo desired = {
-          .info = {.c_u = expected.info.c_u + nodes, .edge = expected.info.edge + degree}
-      };
-      // A failed CAS supplies the next snapshot without racing an ordinary 128-bit read.
-      const __uint128_t observed =
-          __sync_val_compare_and_swap(&next_coarse_node_info.val, expected.val, desired.val);
-      if (observed == expected.val) {
-        break;
+    while (next_coarse_node_info.lock.test_and_set(std::memory_order_acquire)) {
+      while (next_coarse_node_info.lock.test(std::memory_order_relaxed)) {
       }
-      expected.val = observed;
     }
-
-    return std::make_pair(expected.info.c_u, expected.info.edge);
+    const std::uint64_t cur_c_u = next_coarse_node_info.c_u;
+    const std::uint64_t cur_edge = next_coarse_node_info.edge;
+    next_coarse_node_info.c_u = cur_c_u + nodes;
+    next_coarse_node_info.edge = cur_edge + degree;
+    next_coarse_node_info.lock.clear(std::memory_order_release);
+    return std::make_pair(cur_c_u, cur_edge);
   };
 
   // After aggregating the neighborhood of a coarse node, we want to write the edges into the coarse
@@ -427,7 +417,8 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     ConcurrentFastResetArray<EdgeWeight, NodeID> edge_collector(c_n);
     tbb::enumerable_thread_specific<NodeWeight> coarse_node_weight_ets(0);
 
-    auto &[cur_c_u, cur_edge] = next_coarse_node_info.info;
+    auto &cur_c_u = next_coarse_node_info.c_u;
+    auto &cur_edge = next_coarse_node_info.edge;
     for (const NodeID c_u : second_phase_nodes) {
       const NodeID bucket_start = buckets_index[c_u];
       const NodeID bucket_end = buckets_index[c_u + 1];
@@ -542,7 +533,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     DBG << " Second Phase: " << second_phase_nodes.size() << " clusters";
   }
 
-  const EdgeID c_m = next_coarse_node_info.info.edge;
+  const EdgeID c_m = next_coarse_node_info.edge;
   c_nodes[c_n] = c_m;
   STOP_TIMER();
 
