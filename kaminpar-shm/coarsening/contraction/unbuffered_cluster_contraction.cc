@@ -7,6 +7,7 @@
 
 #include <array>
 #include <atomic>
+#include <bit>
 #include <cstring>
 #include <optional>
 #include <utility>
@@ -20,10 +21,10 @@
 
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
-#include "kaminpar-common/datastructures/fixed_size_sparse_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/inline.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {
@@ -31,6 +32,83 @@ namespace kaminpar::shm::contraction {
 namespace {
 
 SET_DEBUG(false);
+
+template <std::size_t kMaxCapacity = 65536> class FlatContractionMap {
+  static_assert((kMaxCapacity & (kMaxCapacity - 1)) == 0);
+  static_assert(kMaxCapacity <= 65536);
+
+  struct Slot {
+    std::uint32_t timestamp;
+    NodeID key;
+    EdgeWeight value;
+  };
+
+public:
+  static constexpr std::size_t MAP_SIZE = kMaxCapacity;
+
+  FlatContractionMap()
+      : _slots(std::make_unique<Slot[]>(kMaxCapacity)),
+        _used_slots(std::make_unique<std::uint16_t[]>(kMaxCapacity)) {
+  }
+
+  FlatContractionMap(const FlatContractionMap &) = delete;
+  FlatContractionMap &operator=(const FlatContractionMap &) = delete;
+  FlatContractionMap(FlatContractionMap &&) noexcept = default;
+  FlatContractionMap &operator=(FlatContractionMap &&) noexcept = default;
+
+  [[nodiscard]] KAMINPAR_INLINE std::size_t size() const {
+    return _size;
+  }
+
+  KAMINPAR_INLINE void add(const NodeID key, const EdgeWeight weight) {
+    Slot *__restrict__ slots = _slots.get();
+    const std::uint32_t ts = _timestamp;
+    const std::size_t mask = _mask;
+    std::size_t slot =
+        (static_cast<std::uint64_t>(key) * 0x9e3779b97f4a7c15ULL) >> _shift;
+    while (true) {
+      Slot &s = slots[slot];
+      if (s.timestamp != ts) {
+        s.timestamp = ts;
+        s.key = key;
+        s.value = weight;
+        _used_slots[_size++] = static_cast<std::uint16_t>(slot);
+        return;
+      }
+      if (s.key == key) {
+        s.value += weight;
+        return;
+      }
+      slot = (slot + 1) & mask;
+    }
+  }
+
+  template <typename Fn> KAMINPAR_INLINE void for_each_entry(Fn &&fn) const {
+    const Slot *__restrict__ slots = _slots.get();
+    const std::uint16_t *__restrict__ used = _used_slots.get();
+    const std::size_t sz = _size;
+    for (std::size_t i = 0; i < sz; ++i) {
+      const Slot &s = slots[used[i]];
+      fn(s.key, s.value);
+    }
+  }
+
+  KAMINPAR_INLINE void clear() {
+    _size = 0;
+    if (++_timestamp == 0) [[unlikely]] {
+      std::memset(_slots.get(), 0, kMaxCapacity * sizeof(Slot));
+      _timestamp = 1;
+    }
+  }
+
+private:
+  std::unique_ptr<Slot[]> _slots;
+  std::unique_ptr<std::uint16_t[]> _used_slots;
+  static constexpr std::size_t _mask = kMaxCapacity - 1;
+  static constexpr int _shift = 64 - std::countr_zero(kMaxCapacity);
+  std::size_t _size = 0;
+  std::uint32_t _timestamp = 1;
+};
 
 class NeighborhoodsBuffer {
   static constexpr NodeID kMaxNumNodes = 4096;
@@ -179,10 +257,18 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     c_nodes[new_c_u] = edge;
     c_node_weights[new_c_u] = c_u_weight;
 
-    for (const auto [c_v, weight] : map.entries()) {
-      c_edges[edge] = c_v;
-      c_edge_weights[edge] = weight;
-      edge += 1;
+    if constexpr (requires { map.for_each_entry([](NodeID, EdgeWeight) {}); }) {
+      map.for_each_entry([&](const NodeID c_v, const EdgeWeight weight) {
+        c_edges[edge] = c_v;
+        c_edge_weights[edge] = weight;
+        edge += 1;
+      });
+    } else {
+      for (const auto [c_v, weight] : map.entries()) {
+        c_edges[edge] = c_v;
+        c_edge_weights[edge] = weight;
+        edge += 1;
+      }
     }
   };
 
@@ -240,8 +326,12 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     }
 
     neighborhood_buffer.add(c_u, degree, c_u_weight, [&](auto &&l) {
-      for (const auto [c_v, weight] : edge_collector.entries()) {
-        l(c_v, weight);
+      if constexpr (requires { edge_collector.for_each_entry([](NodeID, EdgeWeight) {}); }) {
+        edge_collector.for_each_entry(l);
+      } else {
+        for (const auto [c_v, weight] : edge_collector.entries()) {
+          l(c_v, weight);
+        }
       }
     });
   };
@@ -350,7 +440,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       }
     });
   } else if (con_ctx.unbuffered_implementation == ContractionImplementation::TWO_PHASE) {
-    using EdgeCollector = FixedSizeSparseMap<NodeID, EdgeWeight, 65536>;
+    using EdgeCollector = FlatContractionMap<65536>;
     tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
 
     // To aggregate the edges of a coarse node for the two-phase implementation, we iterate over the
@@ -371,7 +461,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
           const NodeID c_v = mapping[v];
           if (c_u != c_v) {
-            local_edge_collector[c_v] += w;
+            local_edge_collector.add(c_v, w);
 
             if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
               second_phase_node = true;
@@ -423,29 +513,20 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       const NodeID bucket_start = buckets_index[c_u];
       const NodeID bucket_end = buckets_index[c_u + 1];
 
-      // To avoid possible contention caused by atomic fetch-and-add operations when there are
-      // clusters in the neighborhood of a coarse node that are often encountered, we first store
-      // the edge weights to adjacent coarse nodes in the thread-local hash tables of the first
-      // phase and flush them when they are full.
       const auto flush_local_rating_map = [&](auto &local_used_entries,
                                               auto &local_edge_collector) {
-        for (const auto [c_v, w] : local_edge_collector.entries()) {
+        local_edge_collector.for_each_entry([&](const NodeID c_v, const EdgeWeight w) {
           const EdgeWeight prev_weight =
               __atomic_fetch_add(&edge_collector[c_v], w, __ATOMIC_RELAXED);
 
           if (prev_weight == 0) {
             local_used_entries.push_back(c_v);
           }
-        }
+        });
 
         local_edge_collector.clear();
       };
 
-      // Since there can be many fine nodes with a low degree inside a cluster, parallel iteration
-      // only over the neighborhood of fine nodes can lead to inferior running times. For this
-      // reason, we iterate in parallel over the fine nodes in a cluster. Furthermore, we iterate in
-      // parallel (with nested parallelism) over the neighborhood of fine nodes, if they have a high
-      // degree, to reduce load imbalance.
       constexpr NodeID kParallelIterationGrainsize = 2000;
       tbb::parallel_for(tbb::blocked_range<NodeID>(bucket_start, bucket_end), [&](const auto &r) {
         auto &local_coarse_node_weight = coarse_node_weight_ets.local();
@@ -462,7 +543,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
             graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
               const NodeID c_v = mapping[v];
               if (c_u != c_v) {
-                local_edge_collector[c_v] += w;
+                local_edge_collector.add(c_v, w);
 
                 if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
                   flush_local_rating_map(local_used_entries, local_edge_collector);
@@ -484,7 +565,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
                 pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
                   const NodeID c_v = mapping[v];
                   if (c_u != c_v) {
-                    local_edge_collector[c_v] += w;
+                    local_edge_collector.add(c_v, w);
 
                     if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
                       flush_local_rating_map(local_used_entries, local_edge_collector);
