@@ -17,7 +17,6 @@
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
 #include "kaminpar-common/datastructures/fixed_size_sparse_map.h"
@@ -46,7 +45,7 @@ public:
       NodeID *edges,
       NodeWeight *node_weights,
       EdgeWeight *edge_weights,
-      CompactStaticArray<NodeID> &remapping
+      NodeID *remapping
   )
       : _nodes(nodes),
         _edges(edges),
@@ -95,7 +94,7 @@ public:
     std::memcpy(_node_weights + c_u, _node_weight_buffer.data(), buffered_node_weights_size);
 
     for (NodeID i = 0; i < _num_buffered_nodes; ++i) {
-      _remapping.write(_remapping_buffer[i], c_u + i);
+      _remapping[_remapping_buffer[i]] = c_u + i;
       _nodes[c_u + i] = _node_buffer[i] + e;
     }
 
@@ -109,7 +108,7 @@ private:
   NodeID *_edges;
   NodeWeight *_node_weights;
   EdgeWeight *_edge_weights;
-  CompactStaticArray<NodeID> &_remapping;
+  NodeID *_remapping;
 
   NodeID _num_buffered_nodes;
   EdgeID _num_buffered_edges;
@@ -167,16 +166,14 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   START_HEAP_PROFILER("Construct coarse graph");
   START_TIMER("Construct coarse graph");
 
-  // When writing the neighborhood of a coarse node into the coarse node array, we additionally
-  // store inside a vector the coarse node ID it is remapped to. This allows us to directly write
-  // the coarse edges into the coarse edge array.
-  CompactStaticArray<NodeID> remapping(math::byte_width(c_n), c_n);
+  StaticArray<NodeID> remapping(c_n, static_array::noinit);
+  NodeID *__restrict__ remapping_ptr = remapping.data();
   const auto write_neighbourhood = [&](const NodeID c_u,
                                        const NodeWeight c_u_weight,
                                        const NodeID new_c_u,
                                        EdgeID edge,
                                        auto &map) {
-    remapping.write(c_u, new_c_u);
+    remapping_ptr[c_u] = new_c_u;
 
     c_nodes[new_c_u] = edge;
     c_node_weights[new_c_u] = c_u_weight;
@@ -299,7 +296,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
 
   tbb::enumerable_thread_specific<NeighborhoodsBuffer> neighborhoods_buffer_ets{[&] {
     return NeighborhoodsBuffer(
-        c_nodes.data(), c_edges, c_node_weights.data(), c_edge_weights, remapping
+        c_nodes.data(), c_edges, c_node_weights.data(), c_edge_weights, remapping_ptr
     );
   }};
 
@@ -515,7 +512,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
         }
       });
 
-      remapping.write(c_u, cur_c_u);
+      remapping_ptr[c_u] = cur_c_u;
 
       NodeWeight c_u_weight = 0;
       for (auto &local_c_u_weight : coarse_node_weight_ets) {
@@ -549,19 +546,17 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   c_nodes[c_n] = c_m;
   STOP_TIMER();
 
-  // After aggregation, we have to remap the adjacent coarse nodes stored in the coarse edge array
-  // as well as the mapping which is used for projection during uncoarsening, because we remapped
-  // the coarse nodes during aggregation.
   START_TIMER("Remap coarse edges and mapping");
-  tbb::parallel_for(tbb::blocked_range<EdgeID>(0, c_m), [&](const auto &r) {
+  tbb::parallel_for(tbb::blocked_range<EdgeID>(0, c_m, 4096), [&](const auto &r) {
     for (EdgeID e = r.begin(); e != r.end(); ++e) {
-      c_edges[e] = remapping[c_edges[e]];
+      c_edges[e] = remapping_ptr[c_edges[e]];
     }
   });
 
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()), [&](const auto &r) {
+  NodeID *__restrict__ mapping_mut = mapping.data();
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n(), 4096), [&](const auto &r) {
     for (NodeID u = r.begin(); u != r.end(); ++u) {
-      mapping.write(u, remapping[mapping[u]]);
+      mapping_mut[u] = remapping_ptr[mapping_mut[u]];
     }
   });
   STOP_TIMER();
