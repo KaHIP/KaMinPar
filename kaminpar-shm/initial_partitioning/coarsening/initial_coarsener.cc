@@ -297,21 +297,6 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
   }
   _timings.interleaved1_ms += timer.elapsed();
 
-  // Here, we have the following arrays, with n -- number of nodes in current
-  // graph, c_n -- number of nodes in coarse
-  //   graph:
-  //
-  // _cluster_nodes[0..n]: first all nodes in cluster 0, then all nodes in
-  // cluster 1, ...
-  //
-  // node_mapping[0..n]: coarse node id of node 0, node 1, node 2, ...
-  //
-  // _cluster_sizes[0..c_n]: first node in the *following* cluster, i.e.,
-  //   _cluster_nodes[_cluster_sizes[0]] = first node in cluster 1
-  //   Hence, the size of cluster 0 is `_cluster_sizes[0]`, the size of cluster
-  //   1 is
-  //   `_cluster_sizes[1] - _cluster_sizes[0]` and so on
-
   timer.reset();
   {
     // note: c_node_weights is already set
@@ -319,46 +304,88 @@ InitialCoarsener::ContractionResult InitialCoarsener::contract_current_clusterin
     NodeID c_m = 0;
     c_nodes[0] = 0;
 
-    for (std::size_t i = 0; i < n; ++i) { // n might be smaller than _cluster_nodes[]
-      const NodeID u = _cluster_nodes[i];
+    const EdgeID *__restrict__ g_nodes = _current_graph->raw_nodes().data();
+    const NodeID *__restrict__ g_edges = _current_graph->raw_edges().data();
+    const bool edge_weighted = _current_graph->is_edge_weighted();
+    const EdgeWeight *__restrict__ g_ew =
+        edge_weighted ? _current_graph->raw_edge_weights().data() : nullptr;
+    const NodeID *__restrict__ mapping_ptr = node_mapping.data();
+    const NodeID *__restrict__ cluster_nodes_ptr = _cluster_nodes.data();
+    NodeID *__restrict__ c_edges_ptr = c_edges.data();
+    EdgeWeight *__restrict__ c_ew_ptr = c_edge_weights.data();
 
-      // node mapping points to the next coarse graph, hence we've seen all
-      // nodes in the last cluster we now add it to the coarse graph
-      if (node_mapping[u] != c_u) {
-        KASSERT(node_mapping[u] == c_u + 1);
-
-        interleaved_handle_node(c_u, c_node_weights[c_u]);
-        for (const auto c_v : _edge_weight_collector.used_entry_ids()) {
-          const EdgeWeight weight = _edge_weight_collector.get(c_v);
-          c_edges[c_m] = c_v;
-          c_edge_weights[c_m] = weight;
-          ++c_m;
-        }
-        _edge_weight_collector.clear();
-        c_nodes[++c_u] = c_m;
+    const auto flush_cluster = [&] {
+      interleaved_handle_node(c_u, c_node_weights[c_u]);
+      for (const auto c_v : _edge_weight_collector.used_entry_ids()) {
+        const EdgeWeight weight = _edge_weight_collector.get(c_v);
+        _edge_weight_collector[c_v] = 0;
+        c_edges_ptr[c_m] = c_v;
+        c_ew_ptr[c_m] = weight;
+        ++c_m;
       }
+      _edge_weight_collector.used_entry_ids().clear();
+      c_nodes[++c_u] = c_m;
+    };
 
-      _current_graph->adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
-        const NodeID c_v = node_mapping[v];
-
-        if (c_u != c_v) {
-          _edge_weight_collector[c_v] += weight;
-          interleaved_visit_neighbor(c_u, c_v, weight);
+    if (edge_weighted) {
+      for (std::size_t i = 0; i < n; ++i) {
+        const NodeID u = cluster_nodes_ptr[i];
+        if (mapping_ptr[u] != c_u) {
+          KASSERT(mapping_ptr[u] == c_u + 1);
+          flush_cluster();
         }
-      });
+
+        const EdgeID e_begin = g_nodes[u];
+        const EdgeID e_end = g_nodes[u + 1];
+        if (!_interleaved_locked) {
+          for (EdgeID e = e_begin; e < e_end; ++e) {
+            const NodeID c_v = mapping_ptr[g_edges[e]];
+            if (c_u != c_v) {
+              const EdgeWeight w = g_ew[e];
+              _edge_weight_collector[c_v] += w;
+              _rating_map[_clustering[c_v].leader] += w;
+            }
+          }
+        } else {
+          for (EdgeID e = e_begin; e < e_end; ++e) {
+            const NodeID c_v = mapping_ptr[g_edges[e]];
+            if (c_u != c_v) {
+              _edge_weight_collector[c_v] += g_ew[e];
+            }
+          }
+        }
+      }
+    } else {
+      for (std::size_t i = 0; i < n; ++i) {
+        const NodeID u = cluster_nodes_ptr[i];
+        if (mapping_ptr[u] != c_u) {
+          KASSERT(mapping_ptr[u] == c_u + 1);
+          flush_cluster();
+        }
+
+        const EdgeID e_begin = g_nodes[u];
+        const EdgeID e_end = g_nodes[u + 1];
+        if (!_interleaved_locked) {
+          for (EdgeID e = e_begin; e < e_end; ++e) {
+            const NodeID c_v = mapping_ptr[g_edges[e]];
+            if (c_u != c_v) {
+              _edge_weight_collector[c_v] += 1;
+              _rating_map[_clustering[c_v].leader] += 1;
+            }
+          }
+        } else {
+          for (EdgeID e = e_begin; e < e_end; ++e) {
+            const NodeID c_v = mapping_ptr[g_edges[e]];
+            if (c_u != c_v) {
+              _edge_weight_collector[c_v] += 1;
+            }
+          }
+        }
+      }
     }
 
     // Finish last cluster:
-    interleaved_handle_node(c_u, c_node_weights[c_u]);
-    for (const auto c_v : _edge_weight_collector.used_entry_ids()) {
-      const EdgeWeight weight = _edge_weight_collector.get(c_v);
-
-      c_edges[c_m] = c_v;
-      c_edge_weights[c_m] = weight;
-      ++c_m;
-    }
-    c_nodes[++c_u] = c_m;
-    _edge_weight_collector.clear();
+    flush_cluster();
 
     KASSERT(c_u == c_n);
     c_edges.restrict(c_m);
