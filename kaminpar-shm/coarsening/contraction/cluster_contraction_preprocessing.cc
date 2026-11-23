@@ -25,9 +25,20 @@ void fill_leader_mapping(
     };
 
     TIMED_SCOPE("Preprocessing") {
-      graph.pfor_nodes([&](const NodeID u) { leader_mapping[u] = 0; });
-      graph.pfor_nodes([&](const NodeID u) {
-        __atomic_store_n(&leader_mapping[clustering[u]], 1, __ATOMIC_RELAXED);
+      NodeID *__restrict__ lm_ptr = leader_mapping.data();
+      const NodeID *__restrict__ cl_ptr = clustering.data();
+      tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n(), 4096), [&](const auto &r) {
+        for (NodeID u = r.begin(); u != r.end(); ++u) {
+          lm_ptr[u] = 0;
+        }
+      });
+      tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n(), 4096), [&](const auto &r) {
+        for (NodeID u = r.begin(); u != r.end(); ++u) {
+          const NodeID c = cl_ptr[u];
+          if (__atomic_load_n(&lm_ptr[c], __ATOMIC_RELAXED) == 0) {
+            __atomic_store_n(&lm_ptr[c], 1, __ATOMIC_RELAXED);
+          }
+        }
       });
       parallel::prefix_sum(
           leader_mapping.begin(), leader_mapping.begin() + graph.n(), leader_mapping.begin()
@@ -41,8 +52,12 @@ StaticArray<NodeID> compute_mapping(
 ) {
   reified(graph, [&](const auto &graph) {
     TIMED_SCOPE("Preprocessing") {
-      graph.pfor_nodes([&](const NodeID u) {
-        clustering[u] = __atomic_load_n(&leader_mapping[clustering[u]], __ATOMIC_RELAXED) - 1;
+      const NodeID *__restrict__ lm_ptr = leader_mapping.data();
+      NodeID *__restrict__ cl_ptr = clustering.data();
+      tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n(), 4096), [&](const auto &r) {
+        for (NodeID u = r.begin(); u != r.end(); ++u) {
+          cl_ptr[u] = lm_ptr[cl_ptr[u]] - 1;
+        }
       });
     };
   });
@@ -85,17 +100,47 @@ void fill_cluster_buckets(
   };
 
   TIMED_SCOPE("Preprocessing") {
-    tbb::parallel_for<NodeID>(0, c_n + 1, [&](const NodeID i) { buckets_index[i] = 0; });
-    reified(graph, [&](const auto &graph) {
-      graph.pfor_nodes([&](const NodeID u) {
-        __atomic_fetch_add(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED);
-      });
-      parallel::prefix_sum(
-          buckets_index.begin(), buckets_index.begin() + c_n + 1, buckets_index.begin()
-      );
-      graph.pfor_nodes([&](const NodeID u) {
-        buckets[__atomic_sub_fetch(&buckets_index[mapping[u]], 1, __ATOMIC_RELAXED)] = u;
-      });
+    NodeID *__restrict__ bi_ptr = buckets_index.data();
+    NodeID *__restrict__ b_ptr = buckets.data();
+    const NodeID *__restrict__ map_ptr = mapping.data();
+    const NodeID n = graph.n();
+
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, c_n + 1, 4096), [&](const auto &r) {
+      for (NodeID i = r.begin(); i != r.end(); ++i) {
+        bi_ptr[i] = 0;
+      }
+    });
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n, 4096), [&](const auto &r) {
+      const NodeID end = r.end();
+      NodeID u = r.begin();
+      while (u < end) {
+        const NodeID c = map_ptr[u];
+        NodeID run = 1;
+        while (u + run < end && map_ptr[u + run] == c) {
+          ++run;
+        }
+        __atomic_fetch_add(&bi_ptr[c], run, __ATOMIC_RELAXED);
+        u += run;
+      }
+    });
+    parallel::prefix_sum(
+        buckets_index.begin(), buckets_index.begin() + c_n + 1, buckets_index.begin()
+    );
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n, 4096), [&](const auto &r) {
+      const NodeID end = r.end();
+      NodeID u = r.begin();
+      while (u < end) {
+        const NodeID c = map_ptr[u];
+        NodeID run = 1;
+        while (u + run < end && map_ptr[u + run] == c) {
+          ++run;
+        }
+        NodeID pos = __atomic_sub_fetch(&bi_ptr[c], run, __ATOMIC_RELAXED);
+        for (NodeID k = 0; k < run; ++k) {
+          b_ptr[pos + k] = u + k;
+        }
+        u += run;
+      }
     });
   };
 }
