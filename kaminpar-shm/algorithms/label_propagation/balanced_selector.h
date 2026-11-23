@@ -41,11 +41,15 @@ public:
     UniformTieSet best_ties(ties);
 
     for (const auto [block, rating] : ratings.entries()) {
+      if (rating < best_rating) {
+        continue;
+      }
+
       const BlockWeight weight = _state.cluster_weight(block);
       const BlockWeight max_weight = _state.max_cluster_weight(block);
       const BlockWeight overload = weight - max_weight;
       const bool accepted =
-          weight + u_weight <= max_weight || overload < from_overload || block == from;
+          block == from || weight + u_weight <= max_weight || overload < from_overload;
       if (!accepted) {
         continue;
       }
