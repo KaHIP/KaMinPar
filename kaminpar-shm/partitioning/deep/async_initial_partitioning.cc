@@ -33,13 +33,32 @@ AsyncInitialPartitioner::AsyncInitialPartitioner(
     TemporarySubgraphMemoryEts &tmp_extraction_mem_pool_ets
 )
     : _input_ctx(input_ctx),
+      _refiner_ctx(input_ctx),
       _bipartitioner_pool(bipartitioner_pool),
       _tmp_extraction_mem_pool_ets(tmp_extraction_mem_pool_ets) {}
 
 PartitionedGraph
 AsyncInitialPartitioner::partition(const Coarsener *coarsener, const PartitionContext &p_ctx) {
   const std::size_t num_threads = compute_num_threads_for_parallel_ip(_input_ctx);
+  _refiner_ctx = _input_ctx;
+  _refiner_ctx.partition.n = coarsener->current().n();
+  _refiner_ctx.partition.m = coarsener->current().m();
+  _refiner_ctx.parallel.num_threads = static_cast<int>(num_threads);
   return split_and_join(coarsener, p_ctx, false, num_threads);
+}
+
+std::unique_ptr<Refiner> AsyncInitialPartitioner::get_refiner() {
+  auto &pool = _refiner_pool_ets.local();
+  if (!pool.empty()) {
+    auto refiner = std::move(pool.back());
+    pool.pop_back();
+    return refiner;
+  }
+  return factory::create_refiner(_refiner_ctx);
+}
+
+void AsyncInitialPartitioner::put_refiner(std::unique_ptr<Refiner> refiner) {
+  _refiner_pool_ets.local().push_back(std::move(refiner));
 }
 
 PartitionedGraph AsyncInitialPartitioner::partition_recursive(
@@ -65,13 +84,11 @@ PartitionedGraph AsyncInitialPartitioner::partition_recursive(
   PartitionedGraph p_graph = split_and_join(coarsener.get(), p_ctx, !shrunk, num_threads);
   p_graph = coarsener->uncoarsen(std::move(p_graph));
 
-  small_ctx.partition.n = p_graph.graph().n();
-  small_ctx.partition.m = p_graph.graph().m();
-
   p_ctx = create_kway_context(_input_ctx, p_graph);
-  auto refiner = factory::create_refiner(small_ctx);
+  auto refiner = get_refiner();
   refiner->initialize(p_graph);
   refiner->refine(p_graph, p_ctx);
+  put_refiner(std::move(refiner));
 
   const BlockID k_prime = std::min(
       _input_ctx.partition.k,

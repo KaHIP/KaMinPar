@@ -7,6 +7,7 @@
  ******************************************************************************/
 #pragma once
 
+#include <cstdint>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -68,15 +69,18 @@ template <typename Key> struct min_heap_comparator {
  */
 template <typename Key, template <typename> typename Comparator> class BinaryHeap {
   using ID = std::size_t;
+  using CompactID = std::uint32_t;
 
-  static constexpr ID kInvalidID = std::numeric_limits<ID>::max();
+  static constexpr CompactID kInvalidPos = std::numeric_limits<CompactID>::max();
   static constexpr std::size_t kTreeArity = 4;
 
 public:
   explicit BinaryHeap(const std::size_t capacity = 0)
       : _heap(capacity),
-        _id_pos(capacity, kInvalidID),
-        _size(0) {}
+        _id_pos(capacity, kInvalidPos),
+        _size(0) {
+    KASSERT(capacity <= kInvalidPos);
+  }
 
   BinaryHeap(const BinaryHeap &) = delete;
   BinaryHeap &operator=(const BinaryHeap &) = delete;
@@ -99,7 +103,7 @@ public:
   [[nodiscard]] bool contains(const ID id) const {
     KASSERT(id < capacity());
 
-    return _id_pos[id] != kInvalidID;
+    return _id_pos[id] != kInvalidPos;
   }
 
   Key key(const ID id) const {
@@ -124,7 +128,7 @@ public:
     KASSERT(contains(id));
 
     const std::size_t pos = _id_pos[id];
-    _id_pos[id] = kInvalidID;
+    _id_pos[id] = kInvalidPos;
     --_size;
     if (pos == _size) {
       return;
@@ -133,7 +137,7 @@ public:
     const Key old_key = _heap[pos].key;
     const HeapElement last = _heap[_size];
     _heap[pos] = last;
-    _id_pos[last.id] = pos;
+    _id_pos[last.id] = static_cast<CompactID>(pos);
     if (_comparator(old_key, last.key)) {
       sift_up(pos);
     } else if (_comparator(last.key, old_key)) {
@@ -145,7 +149,7 @@ public:
 
   void clear() {
     for (std::size_t i = 0; i < _size; ++i) {
-      _id_pos[_heap[i].id] = kInvalidID;
+      _id_pos[_heap[i].id] = kInvalidPos;
     }
     _size = 0;
   }
@@ -154,7 +158,7 @@ public:
     KASSERT(!empty());
 
     --_size;
-    _id_pos[_heap[0].id] = kInvalidID;
+    _id_pos[_heap[0].id] = kInvalidPos;
     if (_size > 0) {
       _heap[0] = _heap[_size];
       _id_pos[_heap[0].id] = 0;
@@ -166,10 +170,9 @@ public:
     KASSERT(!contains(id));
     KASSERT(size() < _heap.size());
 
-    const std::size_t pos = _size;
-    ++_size;
-    _heap[pos] = {id, key};
-    _id_pos[id] = pos;
+    const std::size_t pos = _size++;
+    _heap[pos] = {static_cast<CompactID>(id), key};
+    _id_pos[id] = static_cast<CompactID>(pos);
     sift_up(pos);
   }
 
@@ -178,8 +181,8 @@ public:
     KASSERT(size() < _heap.size());
 
     const std::size_t pos = _size++;
-    _heap[pos] = {id, key};
-    _id_pos[id] = pos;
+    _heap[pos] = {static_cast<CompactID>(id), key};
+    _id_pos[id] = static_cast<CompactID>(pos);
   }
 
   void build_heap() {
@@ -247,20 +250,21 @@ public:
 
   void resize(const std::size_t capacity) {
     KASSERT(empty(), "heap should be empty when resizing it");
+    KASSERT(capacity <= kInvalidPos);
 
-    _id_pos.resize(capacity, kInvalidID);
+    _id_pos.resize(capacity, kInvalidPos);
     _heap.resize(capacity);
   }
 
   [[nodiscard]] std::size_t memory_in_kb() const {
-    return _id_pos.size() * sizeof(std::size_t) / 1000 + _heap.size() * sizeof(HeapElement) / 1000;
+    return _id_pos.size() * sizeof(CompactID) / 1000 + _heap.size() * sizeof(HeapElement) / 1000;
   }
 
 private:
   struct HeapElement {
-    HeapElement() noexcept : id(kInvalidID), key(0) {}
-    HeapElement(const ID id, const Key &key) noexcept : id(id), key(key) {}
-    ID id;
+    HeapElement() noexcept : id(kInvalidPos), key(0) {}
+    HeapElement(const CompactID id, const Key &key) noexcept : id(id), key(key) {}
+    CompactID id;
     Key key;
   };
 
@@ -272,11 +276,11 @@ private:
         break;
       }
       _heap[pos] = _heap[parent];
-      _id_pos[_heap[pos].id] = pos;
+      _id_pos[_heap[pos].id] = static_cast<CompactID>(pos);
       pos = parent;
     }
     _heap[pos] = elem;
-    _id_pos[elem.id] = pos;
+    _id_pos[elem.id] = static_cast<CompactID>(pos);
   }
 
   void sift_down(std::size_t pos) {
@@ -302,15 +306,15 @@ private:
       }
 
       _heap[pos] = _heap[smallest_child];
-      _id_pos[_heap[pos].id] = pos;
+      _id_pos[_heap[pos].id] = static_cast<CompactID>(pos);
       pos = smallest_child;
     }
     _heap[pos] = elem;
-    _id_pos[elem.id] = pos;
+    _id_pos[elem.id] = static_cast<CompactID>(pos);
   }
 
   std::vector<HeapElement> _heap;
-  std::vector<std::size_t> _id_pos;
+  std::vector<CompactID> _id_pos;
   std::size_t _size;
   Comparator<Key> _comparator{};
 };

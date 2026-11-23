@@ -83,9 +83,13 @@ public:
 private:
   [[nodiscard]] bool abort(EdgeWeight prev_edge_weight, EdgeWeight cur_edge_weight) const;
 
-  EdgeWeight round(PartitionedCSRGraph &p_graph, EdgeWeight *out_initial_cut = nullptr);
+  EdgeWeight round(
+      PartitionedCSRGraph &p_graph,
+      EdgeWeight *out_initial_cut = nullptr,
+      bool incremental = false
+  );
 
-  EdgeWeight init_pq(const PartitionedCSRGraph &p_graph);
+  EdgeWeight init_pq(const PartitionedCSRGraph &p_graph, bool incremental);
 
   EdgeWeight insert_node(const PartitionedCSRGraph &p_graph, NodeID u);
 
@@ -105,8 +109,12 @@ private:
       BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}
   };
   Marker<> _marker{0};
+  Marker<> _boundary_marker{0};
   ScalableVector<EdgeWeight> _weighted_degrees{};
   std::vector<NodeID> _moves;
+  std::vector<NodeID> _accepted_moves;
+  std::vector<NodeID> _boundary_nodes;
+  bool _weighted_degrees_ready = false;
 
   StoppingPolicy _stopping_policy{};
 

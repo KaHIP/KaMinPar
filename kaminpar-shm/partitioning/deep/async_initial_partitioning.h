@@ -8,10 +8,16 @@
  ******************************************************************************/
 #pragma once
 
+#include <memory>
+#include <vector>
+
+#include <tbb/enumerable_thread_specific.h>
+
 #include "kaminpar-shm/coarsening/coarsener.h"
 #include "kaminpar-shm/datastructures/partitioned_graph.h"
 #include "kaminpar-shm/initial_partitioning/initial_bipartitioner_worker_pool.h"
 #include "kaminpar-shm/partitioning/helper.h"
+#include "kaminpar-shm/refinement/refiner.h"
 
 namespace kaminpar::shm::partitioning {
 
@@ -37,11 +43,16 @@ private:
       std::size_t num_threads
   );
 
+  std::unique_ptr<Refiner> get_refiner();
+  void put_refiner(std::unique_ptr<Refiner> refiner);
+
   const Context &_input_ctx;
+  Context _refiner_ctx;
 
   InitialBipartitionerWorkerPool &_bipartitioner_pool;
   TemporarySubgraphMemoryEts &_tmp_extraction_mem_pool_ets;
   SubgraphMemoryEts _extraction_mem_pool_ets;
+  tbb::enumerable_thread_specific<std::vector<std::unique_ptr<Refiner>>> _refiner_pool_ets;
 };
 
 } // namespace kaminpar::shm::partitioning
