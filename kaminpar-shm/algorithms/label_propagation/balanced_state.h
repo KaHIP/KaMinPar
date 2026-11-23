@@ -42,6 +42,14 @@ public:
     return _p_ctx->min_block_weight(block);
   }
 
+  [[nodiscard]] bool has_communities() const {
+    return !_communities.empty();
+  }
+
+  [[nodiscard]] const BlockID *raw_partition() const {
+    return _p_graph->raw_partition().data();
+  }
+
   [[nodiscard]] bool accepts_neighbor(const NodeID u, const NodeID v) const {
     return _communities.empty() || _communities[u] == _communities[v];
   }
