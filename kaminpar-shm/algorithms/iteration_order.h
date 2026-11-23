@@ -162,7 +162,6 @@ public:
 
       Random &rand = Random::instance();
       iteration_order_detail::LocalKernel<Kernel> local = kernel.make_local(rand);
-      auto &sub_chunk_permutation = _sub_chunk_permutation_ets.local();
 
       for (std::size_t r = range.begin(); r != range.end(); ++r) {
         if (kernel.should_stop()) {
@@ -171,35 +170,14 @@ public:
 
         const std::size_t chunk_id = next_chunk.fetch_add(1, std::memory_order_relaxed);
         const Chunk &chunk = _chunks[chunk_id];
-        const auto &node_permutation = _random_permutations.get(rand);
 
-        const std::size_t chunk_size = chunk.end - chunk.start;
-        const std::size_t num_sub_chunks = (chunk_size + kPermutationSize - 1) / kPermutationSize;
-
-        if (sub_chunk_permutation.size() < num_sub_chunks) {
-          sub_chunk_permutation.resize(num_sub_chunks);
-        }
-
-        std::iota(
-            sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks, 0
-        );
-        rand.shuffle(
-            sub_chunk_permutation.begin(), sub_chunk_permutation.begin() + num_sub_chunks
-        );
-
-        for (std::size_t sub_chunk = 0; sub_chunk < num_sub_chunks; ++sub_chunk) {
-          const NodeID base = chunk.start + kPermutationSize * sub_chunk_permutation[sub_chunk];
-          if (chunk.end - base >= kPermutationSize) {
-            for (const NodeID offset : node_permutation) {
-              local(base + offset);
-            }
-          } else {
-            for (const NodeID offset : node_permutation) {
-              const NodeID u = base + offset;
-              if (u < chunk.end) {
-                local(u);
-              }
-            }
+        if (rand.random_bool()) {
+          for (NodeID u = chunk.start; u < chunk.end; ++u) {
+            local(u);
+          }
+        } else {
+          for (NodeID u = chunk.end; u-- > chunk.start;) {
+            local(u);
           }
         }
       }
@@ -250,6 +228,23 @@ private:
 
       const std::size_t bucket_start = std::max(graph.first_node_in_bucket(bucket), from);
       const std::size_t chunks_start = _chunks.size();
+
+      if (graph.sorted() && bucket >= 1 && bucket <= 30 && graph.bucket_size(0) == 0) {
+        const EdgeID min_deg = EdgeID{1} << (bucket - 1);
+        const NodeID nodes_per_chunk = static_cast<NodeID>(
+            std::clamp<EdgeID>(max_chunk_size / min_deg, 1, max_node_chunk_size)
+        );
+        const NodeID end_node = static_cast<NodeID>(bucket_start + bucket_size);
+        for (NodeID pos = static_cast<NodeID>(bucket_start); pos < end_node;) {
+          const NodeID next =
+              (end_node - pos > nodes_per_chunk) ? (pos + nodes_per_chunk) : end_node;
+          _chunks.push_back({pos, next});
+          pos = next;
+        }
+        _buckets.push_back({chunks_start, _chunks.size()});
+        position += graph.bucket_size(bucket);
+        continue;
+      }
 
       if (bucket_size <= static_cast<std::size_t>(max_node_chunk_size) * 2) {
         EdgeID current_chunk_size = 0;
@@ -360,7 +355,7 @@ private:
     });
   }
 
-  Permutations &_random_permutations;
+  [[maybe_unused]] Permutations &_random_permutations;
 
   tbb::enumerable_thread_specific<std::vector<NodeID>> _sub_chunk_permutation_ets;
   tbb::enumerable_thread_specific<std::size_t> _num_chunks_ets;

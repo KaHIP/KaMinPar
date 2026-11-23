@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <limits>
 
 #include <tbb/parallel_for.h>
@@ -73,6 +74,14 @@ public:
     resize(num_nodes);
     tbb::parallel_for<NodeID>(0, num_nodes, [&](const NodeID u) {
       _active[u] = static_cast<std::uint8_t>(1);
+    });
+  }
+
+  void reset_inactive(const NodeID num_nodes) {
+    resize(num_nodes);
+    std::uint8_t *__restrict__ active = _active.data();
+    tbb::parallel_for(tbb::blocked_range<NodeID>(0, num_nodes, 4096), [&](const auto &range) {
+      std::memset(active + range.begin(), 0, range.end() - range.begin());
     });
   }
 
