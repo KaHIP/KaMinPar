@@ -43,16 +43,10 @@ void Random::reinit(const int seed) {
 }
 
 void Random::reset() {
-  _bool_dist.reset();
-  _real_dist.reset();
-  _generator = std::mt19937(
+  const std::uint64_t seed = static_cast<std::uint64_t>(
       _local_seed + (_thread_independent_seeding ? 0 : tbb::this_task_arena::current_thread_index())
   );
-
-  _next_random_bool = 0;
-  for (std::size_t i = 0; i < kPrecomputedBools; ++i) {
-    _random_bools[i] = static_cast<bool>(_bool_dist(_generator));
-  }
+  _generator.seed(seed);
 }
 
 } // namespace kaminpar
