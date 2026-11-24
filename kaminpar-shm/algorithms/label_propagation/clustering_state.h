@@ -64,8 +64,17 @@ public:
     return _max_cluster_weight;
   }
 
+  [[nodiscard]] KAMINPAR_INLINE bool has_communities() const {
+    return !_communities.empty();
+  }
+
   [[nodiscard]] KAMINPAR_INLINE bool accepts_community(const NodeID from, const NodeID to) const {
     return _communities.empty() || _communities[from] == _communities[to];
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE bool
+  accepts_community_unchecked(const NodeID from, const NodeID to) const {
+    return _communities[from] == _communities[to];
   }
 
   [[nodiscard]] KAMINPAR_INLINE bool

@@ -42,16 +42,21 @@ public:
     NodeID first_tie = from;
     std::size_t tie_count = 0;
     bool ties_used = false;
+    const NodeWeight max_weight = _state.max_cluster_weight(from);
+    const bool has_communities = _state.has_communities();
+
     for (const auto [cluster, rating] : ratings.entries()) {
       if (rating > best_rating) {
-        if (accepts(cluster, from, u_weight)) {
+        if ((cluster == from || _state.cluster_weight(cluster) + u_weight <= max_weight) &&
+            (!has_communities || _state.accepts_community_unchecked(from, cluster))) {
           best = cluster;
           best_rating = rating;
           first_tie = cluster;
           tie_count = 1;
         }
       } else if (rating == best_rating) {
-        if (accepts(cluster, from, u_weight)) {
+        if ((cluster == from || _state.cluster_weight(cluster) + u_weight <= max_weight) &&
+            (!has_communities || _state.accepts_community_unchecked(from, cluster))) {
           if (tie_count == 0) {
             first_tie = cluster;
             tie_count = 1;
