@@ -87,7 +87,7 @@ public:
     return false;
   }
 
-  template <bool kParallelActivate = false, typename Graph>
+  template <bool kParallelActivate = false, bool kActivateNeighbors = true, typename Graph>
   KAMINPAR_INLINE MoveResult commit(
       const Graph &graph,
       const NodeID u,
@@ -100,10 +100,12 @@ public:
     }
 
     move_node(u, to);
-    if constexpr (kParallelActivate) {
-      _active.activate_neighbors_parallel(graph, u, [](const NodeID) { return true; });
-    } else {
-      _active.activate_neighbors(graph, u, [](const NodeID) { return true; });
+    if constexpr (kActivateNeighbors) {
+      if constexpr (kParallelActivate) {
+        _active.activate_neighbors_parallel(graph, u, [](const NodeID) { return true; });
+      } else {
+        _active.activate_neighbors(graph, u, [](const NodeID) { return true; });
+      }
     }
     return {.moved = true, .emptied_cluster = cluster_weight(from) == 0};
   }

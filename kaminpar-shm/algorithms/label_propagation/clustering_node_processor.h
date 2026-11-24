@@ -91,11 +91,19 @@ public:
   }
 
   KAMINPAR_INLINE void visit(const NodeID u, LocalWorker &local) {
-    visit_impl<false>(u, local);
+    visit_impl<false, true>(u, local);
+  }
+
+  KAMINPAR_INLINE void visit_final(const NodeID u, LocalWorker &local) {
+    visit_impl<false, false>(u, local);
   }
 
   void visit_first_phase(const NodeID u, LocalWorker &local) {
-    visit_impl<true>(u, local);
+    visit_impl<true, true>(u, local);
+  }
+
+  void visit_first_phase_final(const NodeID u, LocalWorker &local) {
+    visit_impl<true, false>(u, local);
   }
 
   void finish_work_unit(LocalWorker &local) {
@@ -103,7 +111,7 @@ public:
     local.removed_clusters = 0;
   }
 
-  void process_deferred_nodes() {
+  void process_deferred_nodes(const bool activate_neighbors = true) {
     _parallel_ratings.ensure_capacity(_graph.n());
     auto &stats = _statistics.local();
     auto local = _rating_maps.local();
@@ -122,7 +130,9 @@ public:
           [&](const NodeID v) { return _state_view.cluster(v); },
           [](const NodeID) { return true; }
       );
-      _state_view.deactivate(u);
+      if (activate_neighbors) {
+        _state_view.deactivate(u);
+      }
 
       _parallel_ratings.for_each_partition_and_reset([&](const std::size_t i, auto &&entries) {
         auto scratch = _rating_maps.local();
@@ -180,7 +190,9 @@ public:
 
       remember_favored_cluster(u, from, selection, store_favored_cluster);
       const MoveResult result =
-          _state_view.commit<true>(_graph, u, from, selection.cluster, u_weight);
+          activate_neighbors
+              ? _state_view.commit<true, true>(_graph, u, from, selection.cluster, u_weight)
+              : _state_view.commit<true, false>(_graph, u, from, selection.cluster, u_weight);
       if (result.moved) {
         ++stats.moved;
       }
@@ -192,7 +204,8 @@ public:
   }
 
 private:
-  template <bool kDefer> KAMINPAR_INLINE void visit_impl(const NodeID u, LocalWorker &local) {
+  template <bool kDefer, bool kTrackActive = true>
+  KAMINPAR_INLINE void visit_impl(const NodeID u, LocalWorker &local) {
     const NodeID degree = _graph.degree(u);
     const NodeWeight u_weight = _graph.node_weight(u);
     const NodeID from = _state_view.cluster(u);
@@ -226,7 +239,9 @@ private:
         );
       }
 
-      _state_view.deactivate(u);
+      if constexpr (kTrackActive) {
+        _state_view.deactivate(u);
+      }
       const NodeID best = _selector.select_cluster(from, u_weight, ratings, local.random, local.ties);
       if (best == from) {
         const NodeWeight from_weight = _state_view.cluster_weight(from);
@@ -241,7 +256,7 @@ private:
     });
 
     if (target && *target != from) {
-      record_move(_state_view.commit(_graph, u, from, *target, u_weight), local);
+      record_move(_state_view.commit<false, kTrackActive>(_graph, u, from, *target, u_weight), local);
     }
   }
 

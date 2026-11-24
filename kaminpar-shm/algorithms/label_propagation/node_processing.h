@@ -43,7 +43,9 @@ private:
 
 enum class NodeProcessingPhase {
   SINGLE,
-  FIRST
+  FIRST,
+  SINGLE_FINAL,
+  FIRST_FINAL
 };
 
 template <typename Processor, NodeProcessingPhase kPhase> class NodeProcessingKernel {
@@ -67,8 +69,12 @@ public:
 
       if constexpr (kPhase == NodeProcessingPhase::SINGLE) {
         _processor.visit(u, _worker);
-      } else {
+      } else if constexpr (kPhase == NodeProcessingPhase::FIRST) {
         _processor.visit_first_phase(u, _worker);
+      } else if constexpr (kPhase == NodeProcessingPhase::SINGLE_FINAL) {
+        _processor.visit_final(u, _worker);
+      } else {
+        _processor.visit_first_phase_final(u, _worker);
       }
       return true;
     }
@@ -100,6 +106,16 @@ template <typename Processor> [[nodiscard]] auto make_single_phase_kernel(Proces
 
 template <typename Processor> [[nodiscard]] auto make_first_phase_kernel(Processor &processor) {
   return NodeProcessingKernel<Processor, NodeProcessingPhase::FIRST>(processor);
+}
+
+template <typename Processor>
+[[nodiscard]] auto make_single_phase_final_kernel(Processor &processor) {
+  return NodeProcessingKernel<Processor, NodeProcessingPhase::SINGLE_FINAL>(processor);
+}
+
+template <typename Processor>
+[[nodiscard]] auto make_first_phase_final_kernel(Processor &processor) {
+  return NodeProcessingKernel<Processor, NodeProcessingPhase::FIRST_FINAL>(processor);
 }
 
 } // namespace kaminpar::shm::lp

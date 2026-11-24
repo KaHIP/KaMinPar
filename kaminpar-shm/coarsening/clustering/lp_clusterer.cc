@@ -110,22 +110,33 @@ public:
     for (std::size_t iteration = 0; iteration < effective_max_iterations; ++iteration) {
       SCOPED_TIMER(iteration == 0 ? "Initial iteration" : "Remaining iterations");
       _workspace.begin_round();
+      const bool is_last_iteration = (iteration + 1 == effective_max_iterations);
 
       if (_lp_ctx.rating_aggregation == LabelPropagationRatingAggregation::DEFERRED_PARALLEL) {
         {
           SCOPED_HEAP_PROFILER("First phase");
           SCOPED_TIMER("First phase");
-          auto kernel = lp::make_first_phase_kernel(processor);
-          for_each(kernel);
+          if (is_last_iteration) {
+            auto kernel = lp::make_first_phase_final_kernel(processor);
+            for_each(kernel);
+          } else {
+            auto kernel = lp::make_first_phase_kernel(processor);
+            for_each(kernel);
+          }
         }
         if (!_workspace.deferred_nodes.empty()) {
           SCOPED_HEAP_PROFILER("Second phase");
           SCOPED_TIMER("Second phase");
-          processor.process_deferred_nodes();
+          processor.process_deferred_nodes(!is_last_iteration);
         }
       } else {
-        auto kernel = lp::make_single_phase_kernel(processor);
-        for_each(kernel);
+        if (is_last_iteration) {
+          auto kernel = lp::make_single_phase_final_kernel(processor);
+          for_each(kernel);
+        } else {
+          auto kernel = lp::make_single_phase_kernel(processor);
+          for_each(kernel);
+        }
       }
 
       if (_workspace.statistics.totals().moved == 0) {
