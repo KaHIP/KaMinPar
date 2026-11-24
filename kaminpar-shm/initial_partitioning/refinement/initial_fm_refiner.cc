@@ -359,22 +359,6 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
   KASSERT(_queues[1].empty());
 
   const NodeID n = _graph->n();
-  const NodeID num_chunks = n / kChunkSize + 1;
-
-  _chunks.clear();
-  if (_chunks.size() < num_chunks) {
-    _chunks.resize(num_chunks);
-  }
-
-  std::iota(_chunks.begin(), _chunks.begin() + num_chunks, 0);
-  std::transform(
-      _chunks.begin(),
-      _chunks.begin() + num_chunks,
-      _chunks.begin(),
-      [](const NodeID i) { return i * kChunkSize; }
-  );
-  _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
-
   std::int64_t total_external_weight = 0;
   const auto &g = *_graph;
   const EdgeID *__restrict__ g_nodes = g.raw_nodes().data();
@@ -382,67 +366,40 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
   const BlockID *__restrict__ part = p_graph.raw_partition().data();
   const EdgeWeight *__restrict__ wd = _weighted_degrees.data();
 
+  const bool forward = _rand.random_bool();
+  auto scan_full = [&](auto weighted_tag) {
+    constexpr bool kWeighted = decltype(weighted_tag)::value;
+    const EdgeWeight *g_ew = kWeighted ? g.raw_edge_weights().data() : nullptr;
+    const auto process_node = [&](const NodeID u) {
+      const BlockID u_block = part[u];
+      EdgeWeight ext = 0;
+      for (EdgeID e = g_nodes[u]; e < g_nodes[u + 1]; ++e) {
+        if constexpr (kWeighted) {
+          ext += (part[g_edges[e]] != u_block) ? g_ew[e] : 0;
+        } else {
+          ext += (part[g_edges[e]] != u_block);
+        }
+      }
+      if (ext != 0) {
+        _queues[u_block].push_unsorted(u, wd[u] - 2 * ext);
+        total_external_weight += ext;
+      }
+    };
+
+    if (forward) {
+      for (NodeID u = 0; u < n; ++u) {
+        process_node(u);
+      }
+    } else {
+      for (NodeID u = n; u-- > 0;) {
+        process_node(u);
+      }
+    }
+  };
   if (g.is_edge_weighted()) {
-    const EdgeWeight *__restrict__ g_ew = g.raw_edge_weights().data();
-    const auto process_node = [&](const NodeID u) {
-      const BlockID u_block = part[u];
-      EdgeWeight ext = 0;
-      const EdgeID e_begin = g_nodes[u];
-      const EdgeID e_end = g_nodes[u + 1];
-      for (EdgeID e = e_begin; e < e_end; ++e) {
-        ext += (part[g_edges[e]] != u_block) ? g_ew[e] : 0;
-      }
-      if (ext != 0) {
-        _queues[u_block].push_unsorted(u, wd[u] - 2 * ext);
-        total_external_weight += ext;
-      }
-    };
-    for (NodeID i = 0; i < num_chunks; ++i) {
-      const NodeID chunk = _chunks[i];
-      const auto &permutation = _permutations.get(_rand);
-      if (chunk + kChunkSize <= n) {
-        for (const NodeID offset : permutation) {
-          process_node(chunk + offset);
-        }
-      } else {
-        for (const NodeID offset : permutation) {
-          const NodeID u = chunk + offset;
-          if (u < n) {
-            process_node(u);
-          }
-        }
-      }
-    }
+    scan_full(std::true_type{});
   } else {
-    const auto process_node = [&](const NodeID u) {
-      const BlockID u_block = part[u];
-      EdgeWeight ext = 0;
-      const EdgeID e_begin = g_nodes[u];
-      const EdgeID e_end = g_nodes[u + 1];
-      for (EdgeID e = e_begin; e < e_end; ++e) {
-        ext += (part[g_edges[e]] != u_block);
-      }
-      if (ext != 0) {
-        _queues[u_block].push_unsorted(u, wd[u] - 2 * ext);
-        total_external_weight += ext;
-      }
-    };
-    for (NodeID i = 0; i < num_chunks; ++i) {
-      const NodeID chunk = _chunks[i];
-      const auto &permutation = _permutations.get(_rand);
-      if (chunk + kChunkSize <= n) {
-        for (const NodeID offset : permutation) {
-          process_node(chunk + offset);
-        }
-      } else {
-        for (const NodeID offset : permutation) {
-          const NodeID u = chunk + offset;
-          if (u < n) {
-            process_node(u);
-          }
-        }
-      }
-    }
+    scan_full(std::false_type{});
   }
 
   _queues[0].build_heap();
