@@ -98,6 +98,25 @@ public:
     return is_node_weighted() ? _node_weights[u] : 1;
   }
 
+  struct PrecomputedStats {
+    NodeWeight total_node_weight;
+    NodeWeight max_node_weight;
+    EdgeWeight total_edge_weight;
+    EdgeWeight max_edge_weight;
+    NodeID max_degree;
+  };
+
+  CSRGraph(
+      StaticArray<EdgeID> nodes,
+      StaticArray<NodeID> edges,
+      StaticArray<NodeWeight> node_weights,
+      StaticArray<EdgeWeight> edge_weights,
+      bool sorted,
+      const PrecomputedStats &stats,
+      std::vector<NodeID> buckets,
+      std::size_t number_of_buckets
+  );
+
   [[nodiscard]] inline NodeWeight max_node_weight() const final {
     return _max_node_weight;
   }

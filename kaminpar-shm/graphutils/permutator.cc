@@ -7,10 +7,12 @@
 #include "kaminpar-shm/graphutils/permutator.h"
 
 #include <algorithm>
+#include <numeric>
 #include <set>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_invoke.h>
+#include <tbb/task_arena.h>
 
 #include "kaminpar-common/assert.h"
 #include "kaminpar-common/heap_profiler.h"
@@ -69,13 +71,204 @@ NodePermutations rearrange_graph(
 Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
   SCOPED_TIMER("Rearrange by degree-buckets");
 
-  [[maybe_unused]] const NodeID n = old_graph.n();
+  const NodeID n = old_graph.n();
+  const CSRGraph::PrecomputedStats stats{
+      .total_node_weight = old_graph.total_node_weight(),
+      .max_node_weight = old_graph.max_node_weight(),
+      .total_edge_weight = old_graph.total_edge_weight(),
+      .max_edge_weight = old_graph.max_edge_weight(),
+      .max_degree = old_graph.max_degree(),
+  };
+
   auto nodes = old_graph.take_raw_nodes();
   auto edges = old_graph.take_raw_edges();
   auto node_weights = old_graph.take_raw_node_weights();
   auto edge_weights = old_graph.take_raw_edge_weights();
 
-  auto node_permutations = graph::rearrange_graph(nodes, edges, node_weights, edge_weights);
+  constexpr std::size_t kNumBuckets = kNumberOfDegreeBuckets<NodeID>;
+  std::vector<NodeID> csr_buckets(kNumBuckets + 1, 0);
+  std::size_t number_of_buckets = 0;
+
+  if (n == 0) {
+    CSRGraph new_graph(
+        std::move(nodes),
+        std::move(edges),
+        std::move(node_weights),
+        std::move(edge_weights),
+        true,
+        stats,
+        std::move(csr_buckets),
+        0
+    );
+    return Graph(std::make_unique<CSRGraph>(std::move(new_graph)));
+  }
+
+  START_HEAP_PROFILER("Rearrange input graph");
+  const std::size_t cpus = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
+  CacheAlignedVector<std::vector<NodeID>> local_perm_counts(
+      cpus + 1, std::vector<NodeID>(kNumBuckets + 1, 0)
+  );
+  CacheAlignedVector<std::vector<NodeID>> local_csr_counts(
+      cpus, std::vector<NodeID>(kNumBuckets + 1, 0)
+  );
+  struct CpuOrderInfo {
+    bool sorted = true;
+    bool non_empty = false;
+    NodeID first_b = 0;
+    NodeID last_b = 0;
+  };
+  CacheAlignedVector<CpuOrderInfo> cpu_order(cpus);
+
+  const EdgeID *__restrict__ nodes_ptr = nodes.data();
+  {
+    SCOPED_TIMER("Sort nodes by integer buckets");
+    parallel::deterministic_for<NodeID>(
+        0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+          NodeID *__restrict__ my_perm = local_perm_counts[cpu + 1].data();
+          NodeID *__restrict__ my_csr = local_csr_counts[cpu].data();
+          auto &order = cpu_order[cpu];
+
+          if (from < to) {
+            order.non_empty = true;
+            NodeID prev_b = 0;
+            for (NodeID u = from; u < to; ++u) {
+              const NodeID deg = static_cast<NodeID>(nodes_ptr[u + 1] - nodes_ptr[u]);
+              const std::size_t csr_b = degree_bucket(deg);
+              const NodeID perm_b = (deg == 0) ? (kNumBuckets - 1) : static_cast<NodeID>(csr_b);
+              ++my_perm[perm_b];
+              ++my_csr[csr_b + 1];
+
+              if (u == from) {
+                order.first_b = perm_b;
+              } else if (perm_b < prev_b) {
+                order.sorted = false;
+              }
+              prev_b = perm_b;
+            }
+            order.last_b = prev_b;
+          }
+        }
+    );
+
+    for (std::size_t cpu = 0; cpu < cpus; ++cpu) {
+      for (std::size_t i = 0; i < kNumBuckets + 1; ++i) {
+        csr_buckets[i] += local_csr_counts[cpu][i];
+      }
+    }
+    auto last_nonempty_bucket =
+        std::find_if(csr_buckets.rbegin(), csr_buckets.rend(), [](const auto c) { return c > 0; });
+    number_of_buckets =
+        (last_nonempty_bucket == csr_buckets.rend())
+            ? 0
+            : std::distance(csr_buckets.begin(), (last_nonempty_bucket + 1).base());
+    std::partial_sum(csr_buckets.begin(), csr_buckets.end(), csr_buckets.begin());
+  }
+
+  bool already_sorted = true;
+  NodeID prev_cpu_last_b = 0;
+  bool seen_non_empty = false;
+  for (std::size_t cpu = 0; cpu < cpus; ++cpu) {
+    if (!cpu_order[cpu].non_empty) {
+      continue;
+    }
+    if (!cpu_order[cpu].sorted || (seen_non_empty && cpu_order[cpu].first_b < prev_cpu_last_b)) {
+      already_sorted = false;
+      break;
+    }
+    prev_cpu_last_b = cpu_order[cpu].last_b;
+    seen_non_empty = true;
+  }
+
+  if (already_sorted) {
+    STOP_HEAP_PROFILER();
+    CSRGraph new_graph(
+        std::move(nodes),
+        std::move(edges),
+        std::move(node_weights),
+        std::move(edge_weights),
+        true,
+        stats,
+        std::move(csr_buckets),
+        number_of_buckets
+    );
+    return Graph(std::make_unique<CSRGraph>(std::move(new_graph)));
+  }
+
+  NodePermutations node_permutations;
+  {
+    SCOPED_TIMER("Sort nodes by integer buckets");
+    node_permutations.old_to_new = StaticArray<NodeID>(n, static_array::noinit);
+    node_permutations.new_to_old = StaticArray<NodeID>(n, static_array::noinit);
+
+    std::vector<NodeID> global_buckets(kNumBuckets + 1, 0);
+    for (std::size_t id = 1; id < cpus + 1; ++id) {
+      for (std::size_t i = 0; i < kNumBuckets; ++i) {
+        global_buckets[i + 1] += local_perm_counts[id][i];
+      }
+    }
+    parallel::prefix_sum(global_buckets.begin(), global_buckets.end(), global_buckets.begin());
+    for (std::size_t i = 0; i < global_buckets.size(); ++i) {
+      for (std::size_t id = 0; id + 1 < cpus; ++id) {
+        local_perm_counts[id + 1][i] += local_perm_counts[id][i];
+      }
+      for (std::size_t id = 0; id < cpus; ++id) {
+        local_perm_counts[id][i] += global_buckets[i];
+      }
+    }
+
+    NodeID *__restrict__ perm_ptr = node_permutations.old_to_new.data();
+    NodeID *__restrict__ inv_ptr = node_permutations.new_to_old.data();
+    parallel::deterministic_for<NodeID>(
+        0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+          NodeID *__restrict__ my_offsets = local_perm_counts[cpu].data();
+          for (NodeID u = from; u < to; ++u) {
+            const NodeID deg = static_cast<NodeID>(nodes_ptr[u + 1] - nodes_ptr[u]);
+            const NodeID perm_b =
+                (deg == 0) ? (kNumBuckets - 1) : static_cast<NodeID>(degree_bucket(deg));
+            const NodeID new_u = my_offsets[perm_b]++;
+            perm_ptr[u] = new_u;
+            inv_ptr[new_u] = u;
+          }
+        }
+    );
+  }
+  STOP_HEAP_PROFILER();
+
+  START_HEAP_PROFILER("Temporal nodes and edges allocation");
+  StaticArray<EdgeID> tmp_nodes(nodes.size(), static_array::noinit);
+  StaticArray<NodeID> tmp_edges(edges.size(), static_array::noinit);
+  StaticArray<NodeWeight> tmp_node_weights(node_weights.size(), static_array::noinit);
+  StaticArray<EdgeWeight> tmp_edge_weights(edge_weights.size(), static_array::noinit);
+  STOP_HEAP_PROFILER();
+
+  START_HEAP_PROFILER("Rearrange input graph");
+  START_TIMER("Rearrange input graph");
+  build_permuted_graph(
+      nodes,
+      edges,
+      node_weights,
+      edge_weights,
+      node_permutations,
+      tmp_nodes,
+      tmp_edges,
+      tmp_node_weights,
+      tmp_edge_weights
+  );
+  std::swap(nodes, tmp_nodes);
+  std::swap(edges, tmp_edges);
+  std::swap(node_weights, tmp_node_weights);
+  std::swap(edge_weights, tmp_edge_weights);
+  STOP_TIMER();
+  STOP_HEAP_PROFILER();
+
+  START_TIMER("Deallocation");
+  tbb::parallel_invoke(
+      [&] { tmp_nodes.free(); },
+      [&] { tmp_edges.free(); },
+      [&] { tmp_node_weights.free(); },
+      [&] { tmp_edge_weights.free(); }
+  );
+  STOP_TIMER();
 
   KASSERT(
       debug::validate_graph(n, nodes, edges, node_weights, edge_weights),
@@ -84,7 +277,14 @@ Graph rearrange_by_degree_buckets(CSRGraph &old_graph) {
   );
 
   CSRGraph new_graph(
-      std::move(nodes), std::move(edges), std::move(node_weights), std::move(edge_weights), true
+      std::move(nodes),
+      std::move(edges),
+      std::move(node_weights),
+      std::move(edge_weights),
+      true,
+      stats,
+      std::move(csr_buckets),
+      number_of_buckets
   );
   new_graph.set_permutation(std::move(node_permutations.old_to_new));
 

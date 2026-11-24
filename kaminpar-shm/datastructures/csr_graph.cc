@@ -188,6 +188,31 @@ CSRGraph::CSRGraph(
 }
 
 CSRGraph::CSRGraph(
+    StaticArray<EdgeID> nodes,
+    StaticArray<NodeID> edges,
+    StaticArray<NodeWeight> node_weights,
+    StaticArray<EdgeWeight> edge_weights,
+    bool sorted,
+    const PrecomputedStats &stats,
+    std::vector<NodeID> buckets,
+    std::size_t number_of_buckets
+)
+    : _nodes(std::move(nodes)),
+      _edges(std::move(edges)),
+      _node_weights(std::move(node_weights)),
+      _edge_weights(std::move(edge_weights)),
+      _max_node_weight(stats.max_node_weight),
+      _total_node_weight(stats.total_node_weight),
+      _max_edge_weight(stats.max_edge_weight),
+      _total_edge_weight(stats.total_edge_weight),
+      _max_degree(stats.max_degree),
+      _sorted(sorted),
+      _buckets(std::move(buckets)),
+      _number_of_buckets(number_of_buckets) {
+  KASSERT(_buckets.size() == kNumberOfDegreeBuckets<NodeID> + 1);
+}
+
+CSRGraph::CSRGraph(
     seq,
     StaticArray<EdgeID> nodes,
     StaticArray<NodeID> edges,
