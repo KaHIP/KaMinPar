@@ -67,9 +67,21 @@ public:
   }
 
   void visit(const NodeID u, LocalWorker &local) {
+    visit_impl<false>(u, local);
+  }
+
+  void visit_first_iter(const NodeID u, LocalWorker &local) {
+    visit_impl<true>(u, local);
+  }
+
+  void finish_work_unit(LocalWorker &) {}
+
+private:
+  template <bool kFirstIteration>
+  void visit_impl(const NodeID u, LocalWorker &local) {
     if constexpr (std::is_same_v<std::decay_t<Graph>, CSRGraph>) {
       if (!_state.has_communities()) [[likely]] {
-        visit_csr_unrestricted(u, local);
+        visit_csr_unrestricted<kFirstIteration>(u, local);
         return;
       }
     }
@@ -85,7 +97,9 @@ public:
           [&](const NodeID v) { return _state.cluster(v); },
           [&](const NodeID v) { return _state.accepts_neighbor(u, v); }
       );
-      _state.deactivate(u);
+      if constexpr (!kFirstIteration) {
+        _state.deactivate(u);
+      }
       const BlockID selected = _selector.select(from, u_weight, ratings, local.random, local.ties);
       ratings.clear();
       return selected;
@@ -96,9 +110,7 @@ public:
     }
   }
 
-  void finish_work_unit(LocalWorker &) {}
-
-private:
+  template <bool kFirstIteration>
   void visit_csr_unrestricted(const NodeID u, LocalWorker &local) {
     const EdgeID *__restrict__ g_nodes = _graph.raw_nodes().data();
     const NodeID *__restrict__ g_edges = _graph.raw_edges().data();
@@ -135,7 +147,9 @@ private:
     }
 
     if (e == e_end) {
-      _state.deactivate(u);
+      if constexpr (!kFirstIteration) {
+        _state.deactivate(u);
+      }
       return;
     }
 
@@ -173,7 +187,9 @@ private:
         }
       }
 
-      _state.deactivate(u);
+      if constexpr (!kFirstIteration) {
+        _state.deactivate(u);
+      }
       const BlockID selected = _selector.select(from, u_weight, ratings, local.random, local.ties);
       ratings.clear();
       return selected;

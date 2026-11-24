@@ -72,7 +72,7 @@ public:
 
   bool run() {
     _workspace.ensure_capacity(_p_ctx.k);
-    _workspace.state.reset(_p_graph, _p_ctx, _communities);
+    _workspace.state.reset(_p_graph, _p_ctx, _communities, false);
     initialize_iteration_order();
 
     lp::BalancedNodeProcessor processor(
@@ -85,8 +85,15 @@ public:
       SCOPED_TIMER(iteration == 0 ? "Initial iteration" : "Remaining iterations");
       _workspace.begin_round();
 
-      auto kernel = lp::make_single_phase_kernel(processor);
-      for_each(kernel);
+      const bool is_first = (iteration == 0);
+      if (is_first) {
+        auto kernel = lp::make_first_iter_kernel(processor);
+        for_each(kernel);
+      } else {
+        auto kernel = lp::make_single_phase_kernel(processor);
+        for_each(kernel);
+      }
+
       if (_workspace.statistics.totals().moved == 0) {
         break;
       }

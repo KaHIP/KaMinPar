@@ -18,12 +18,17 @@ public:
   void reset(
       PartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
-      const std::span<const NodeID> communities
+      const std::span<const NodeID> communities,
+      const bool activate_all = true
   ) {
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
     _communities = communities;
-    _active.reset(p_graph.n());
+    if (activate_all) {
+      _active.reset(p_graph.n());
+    } else {
+      _active.reset_inactive(p_graph.n());
+    }
   }
 
   [[nodiscard]] BlockID cluster(const NodeID u) const {
