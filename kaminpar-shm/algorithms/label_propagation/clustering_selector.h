@@ -39,18 +39,41 @@ public:
   ) const {
     NodeID best = from;
     EdgeWeight best_rating = 0;
-    UniformTieSet best_ties(ties);
+    NodeID first_tie = from;
+    std::size_t tie_count = 0;
+    bool ties_used = false;
     for (const auto [cluster, rating] : ratings.entries()) {
-      if (rating > best_rating && accepts(cluster, from, u_weight)) {
-        best = cluster;
-        best_rating = rating;
-        best_ties.replace_with(cluster);
-      } else if (rating == best_rating && accepts(cluster, from, u_weight)) {
-        best_ties.add(cluster);
+      if (rating > best_rating) {
+        if (accepts(cluster, from, u_weight)) {
+          best = cluster;
+          best_rating = rating;
+          first_tie = cluster;
+          tie_count = 1;
+        }
+      } else if (rating == best_rating) {
+        if (accepts(cluster, from, u_weight)) {
+          if (tie_count == 0) {
+            first_tie = cluster;
+            tie_count = 1;
+          } else {
+            if (tie_count == 1) {
+              ties.clear();
+              ties.push_back(first_tie);
+              ties_used = true;
+            }
+            ties.push_back(cluster);
+            ++tie_count;
+          }
+        }
       }
     }
-    best = best_ties.select_or(best, random);
-    best_ties.clear();
+
+    if (tie_count > 1) [[unlikely]] {
+      best = ties[random.random_index(0, tie_count)];
+    }
+    if (ties_used) [[unlikely]] {
+      ties.clear();
+    }
     return best;
   }
 
@@ -60,18 +83,38 @@ public:
   ) const {
     NodeID favored = from;
     EdgeWeight favored_rating = 0;
-    UniformTieSet ties(favored_ties);
+    NodeID first_tie = from;
+    std::size_t tie_count = 0;
+    bool ties_used = false;
+
     for (const auto [cluster, rating] : ratings.entries()) {
       if (rating > favored_rating) {
-        favored = cluster;
         favored_rating = rating;
-        ties.replace_with(cluster);
+        favored = cluster;
+        first_tie = cluster;
+        tie_count = 1;
       } else if (rating == favored_rating) {
-        ties.add(cluster);
+        if (tie_count == 0) {
+          first_tie = cluster;
+          tie_count = 1;
+        } else {
+          if (tie_count == 1) {
+            favored_ties.clear();
+            favored_ties.push_back(first_tie);
+            ties_used = true;
+          }
+          favored_ties.push_back(cluster);
+          ++tie_count;
+        }
       }
     }
-    favored = ties.select_or(favored, random);
-    ties.clear();
+
+    if (tie_count > 1) [[unlikely]] {
+      favored = favored_ties[random.random_index(0, tie_count)];
+    }
+    if (ties_used) [[unlikely]] {
+      favored_ties.clear();
+    }
     return favored;
   }
 
