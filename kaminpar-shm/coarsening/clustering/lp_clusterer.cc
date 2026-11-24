@@ -104,8 +104,10 @@ public:
         _workspace.statistics
     );
 
+    const std::size_t fine_cap =
+        (_graph.n() >= 1000000 && _graph.m() >= 3 * static_cast<EdgeID>(_graph.n())) ? 3 : 4;
     const std::size_t effective_max_iterations =
-        (_graph.n() >= 100000) ? std::min<std::size_t>(_lp_ctx.num_iterations, 4)
+        (_graph.n() >= 100000) ? std::min<std::size_t>(_lp_ctx.num_iterations, fine_cap)
                                : _lp_ctx.num_iterations;
     for (std::size_t iteration = 0; iteration < effective_max_iterations; ++iteration) {
       SCOPED_TIMER(iteration == 0 ? "Initial iteration" : "Remaining iterations");
