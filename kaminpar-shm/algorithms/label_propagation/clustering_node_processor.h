@@ -347,8 +347,8 @@ private:
 
     if (check_full) [[unlikely]] {
       constexpr std::size_t kThreshold = ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold;
-      if constexpr (requires { ratings.accumulator(); }) {
-        auto acc = ratings.accumulator();
+      if constexpr (requires { ratings.fast_accumulator(); }) {
+        auto acc = ratings.fast_accumulator();
         for (EdgeID e = e_begin; e < e_end; ++e) {
           acc.add(_state_view.cluster(g_edges[e]), edge_weighted ? g_ew[e] : 1);
           if (acc.size() >= kThreshold) [[unlikely]] {
@@ -366,8 +366,8 @@ private:
       return false;
     }
 
-    if constexpr (requires { ratings.accumulator(); }) {
-      auto acc = ratings.accumulator();
+    if constexpr (requires { ratings.fast_accumulator(); }) {
+      auto acc = ratings.fast_accumulator();
       if (edge_weighted) {
         for (EdgeID e = e_begin; e < e_end; ++e) {
           acc.add(_state_view.cluster(g_edges[e]), g_ew[e]);

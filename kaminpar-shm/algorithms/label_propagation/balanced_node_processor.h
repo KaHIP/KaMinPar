@@ -158,8 +158,8 @@ private:
     const std::size_t upper_bound =
         std::min<BlockID>(static_cast<NodeID>(e_end - e_begin), _num_blocks);
     const BlockID to = local.ratings.execute(upper_bound, [&](auto &ratings) {
-      if constexpr (requires { ratings.accumulator(); }) {
-        auto acc = ratings.accumulator();
+      if constexpr (requires { ratings.fast_accumulator(); }) {
+        auto acc = ratings.fast_accumulator();
         if (internal_rating > 0) {
           acc.add(from, internal_rating);
         }
