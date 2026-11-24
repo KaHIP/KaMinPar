@@ -37,26 +37,73 @@ public:
       Random &random,
       TieContainer &ties
   ) const {
+    constexpr std::size_t kMaxStackTies = 16;
+    NodeID max_clusters[kMaxStackTies];
+    EdgeWeight max_rating = 0;
+    std::size_t max_count = 0;
+
+    // Phase 1: L1 scan over ratings only (no random global weight loads).
+    for (const auto [cluster, rating] : ratings.entries()) {
+      if (rating > max_rating) {
+        max_rating = rating;
+        max_clusters[0] = cluster;
+        max_count = 1;
+      } else if (rating == max_rating) {
+        if (max_count < kMaxStackTies) {
+          max_clusters[max_count] = cluster;
+        }
+        ++max_count;
+      }
+    }
+
+    if (max_count == 0) {
+      return from;
+    }
+
+    const NodeWeight max_weight = _state.max_cluster_weight(from);
+    const bool has_communities = _state.has_communities();
+    auto is_feasible = [&](const NodeID cluster) {
+      return (cluster == from || _state.cluster_weight(cluster) + u_weight <= max_weight) &&
+             (!has_communities || _state.accepts_community_unchecked(from, cluster));
+    };
+
+    // Phase 2: Fast check on the highest-rated candidate(s) with exact rejection sampling.
+    if (max_rating > 0 && max_count <= kMaxStackTies) {
+      if (max_count == 1) {
+        const NodeID cand = max_clusters[0];
+        if (is_feasible(cand)) {
+          return cand;
+        }
+      } else {
+        std::size_t remaining = max_count;
+        while (remaining > 0) {
+          const std::size_t idx = (remaining == 1) ? 0 : random.random_index(0, remaining);
+          const NodeID cand = max_clusters[idx];
+          if (is_feasible(cand)) {
+            return cand;
+          }
+          max_clusters[idx] = max_clusters[--remaining];
+        }
+      }
+    }
+
+    // Fallback: rare case when all top-rated candidates were rejected or >16 tied.
     NodeID best = from;
     EdgeWeight best_rating = 0;
     NodeID first_tie = from;
     std::size_t tie_count = 0;
     bool ties_used = false;
-    const NodeWeight max_weight = _state.max_cluster_weight(from);
-    const bool has_communities = _state.has_communities();
 
     for (const auto [cluster, rating] : ratings.entries()) {
       if (rating > best_rating) {
-        if ((cluster == from || _state.cluster_weight(cluster) + u_weight <= max_weight) &&
-            (!has_communities || _state.accepts_community_unchecked(from, cluster))) {
+        if (is_feasible(cluster)) {
           best = cluster;
           best_rating = rating;
           first_tie = cluster;
           tie_count = 1;
         }
       } else if (rating == best_rating) {
-        if ((cluster == from || _state.cluster_weight(cluster) + u_weight <= max_weight) &&
-            (!has_communities || _state.accepts_community_unchecked(from, cluster))) {
+        if (is_feasible(cluster)) {
           if (tie_count == 0) {
             first_tie = cluster;
             tie_count = 1;
@@ -86,9 +133,10 @@ public:
   [[nodiscard]] NodeID select_favored_cluster(
       const NodeID from, Map &ratings, Random &random, TieContainer &favored_ties
   ) const {
+    constexpr std::size_t kMaxStackTies = 16;
+    NodeID stack_ties[kMaxStackTies];
     NodeID favored = from;
     EdgeWeight favored_rating = 0;
-    NodeID first_tie = from;
     std::size_t tie_count = 0;
     bool ties_used = false;
 
@@ -96,16 +144,17 @@ public:
       if (rating > favored_rating) {
         favored_rating = rating;
         favored = cluster;
-        first_tie = cluster;
+        stack_ties[0] = cluster;
         tie_count = 1;
+        ties_used = false;
       } else if (rating == favored_rating) {
-        if (tie_count == 0) {
-          first_tie = cluster;
-          tie_count = 1;
+        if (tie_count < kMaxStackTies) {
+          stack_ties[tie_count] = cluster;
+          ++tie_count;
         } else {
-          if (tie_count == 1) {
+          if (!ties_used) {
             favored_ties.clear();
-            favored_ties.push_back(first_tie);
+            favored_ties.insert(favored_ties.end(), stack_ties, stack_ties + kMaxStackTies);
             ties_used = true;
           }
           favored_ties.push_back(cluster);
@@ -115,10 +164,12 @@ public:
     }
 
     if (tie_count > 1) [[unlikely]] {
-      favored = favored_ties[random.random_index(0, tie_count)];
-    }
-    if (ties_used) [[unlikely]] {
-      favored_ties.clear();
+      if (ties_used) [[unlikely]] {
+        favored = favored_ties[random.random_index(0, tie_count)];
+        favored_ties.clear();
+      } else {
+        favored = stack_ties[random.random_index(0, tie_count)];
+      }
     }
     return favored;
   }

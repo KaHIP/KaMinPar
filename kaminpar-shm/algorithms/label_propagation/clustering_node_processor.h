@@ -250,6 +250,90 @@ private:
         return;
       }
 
+      if ((degree == 2 || degree == 3) && !_graph.is_edge_weighted()) {
+        if constexpr (kTrackActive) {
+          _state_view.deactivate(u);
+        }
+        const NodeWeight max_weight = _state_view.max_cluster_weight(from);
+        const bool has_communities = _state_view.has_communities();
+        auto is_feasible = [&](const NodeID c) {
+          return (c == from || _state_view.cluster_weight(c) + u_weight <= max_weight) &&
+                 (!has_communities || _state_view.accepts_community_unchecked(from, c));
+        };
+
+        const NodeID c0 = _state_view.cluster(g_edges[e_begin]);
+        const NodeID c1 = _state_view.cluster(g_edges[e_begin + 1]);
+        NodeID best = from;
+        NodeID favored_base[3] = {c0, c1, c0};
+        std::size_t favored_tie_count = 1;
+
+        if (degree == 2) {
+          if (c0 == c1) {
+            if (is_feasible(c0)) {
+              best = c0;
+            }
+          } else {
+            favored_tie_count = 2;
+            const std::size_t first_idx = local.random.random_index(0, 2);
+            const NodeID first = (first_idx == 0) ? c0 : c1;
+            const NodeID second = (first_idx == 0) ? c1 : c0;
+            if (is_feasible(first)) {
+              best = first;
+            } else if (is_feasible(second)) {
+              best = second;
+            }
+          }
+        } else {
+          const NodeID c2 = _state_view.cluster(g_edges[e_begin + 2]);
+          if (c0 == c1 && c1 == c2) {
+            if (is_feasible(c0)) {
+              best = c0;
+            }
+          } else if (c0 == c1 || c0 == c2 || c1 == c2) {
+            const NodeID maj = (c0 == c1 || c0 == c2) ? c0 : c1;
+            const NodeID minor = (c0 == c1) ? c2 : ((c0 == c2) ? c1 : c0);
+            favored_base[0] = maj;
+            if (is_feasible(maj)) {
+              best = maj;
+            } else if (is_feasible(minor)) {
+              best = minor;
+            }
+          } else {
+            favored_base[2] = c2;
+            favored_tie_count = 3;
+            NodeID cands[3] = {c0, c1, c2};
+            std::size_t rem = 3;
+            while (rem > 0) {
+              const std::size_t idx = (rem == 1) ? 0 : local.random.random_index(0, rem);
+              const NodeID cand = cands[idx];
+              if (is_feasible(cand)) {
+                best = cand;
+                break;
+              }
+              cands[idx] = cands[--rem];
+            }
+          }
+        }
+
+        if (best != from) {
+          const MoveResult result =
+              _state_view.commit<false, kTrackActive>(_graph, u, from, best, u_weight);
+          if (result.moved) {
+            record_move(result, local);
+            return;
+          }
+        }
+        const NodeWeight from_weight = _state_view.cluster_weight(from);
+        if (u_weight == from_weight && from_weight <= max_weight / 2) {
+          const NodeID favored =
+              (favored_tie_count == 1)
+                  ? favored_base[0]
+                  : favored_base[local.random.random_index(0, favored_tie_count)];
+          _state_view.set_favored_cluster(u, favored);
+        }
+        return;
+      }
+
       const std::size_t upper_bound =
           std::min<std::size_t>(static_cast<std::size_t>(degree), _graph.n());
       const std::size_t map_bound =
@@ -354,8 +438,8 @@ private:
 
     if (check_full) [[unlikely]] {
       constexpr std::size_t kThreshold = ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold;
-      if constexpr (requires { ratings.accumulator(); }) {
-        auto acc = ratings.accumulator();
+      if constexpr (requires { ratings.fast_accumulator(); }) {
+        auto acc = ratings.fast_accumulator();
         for (EdgeID e = e_begin; e < e_end; ++e) {
           acc.add(_state_view.cluster(g_edges[e]), edge_weighted ? g_ew[e] : 1);
           if (acc.size() >= kThreshold) [[unlikely]] {
@@ -373,8 +457,8 @@ private:
       return false;
     }
 
-    if constexpr (requires { ratings.accumulator(); }) {
-      auto acc = ratings.accumulator();
+    if constexpr (requires { ratings.fast_accumulator(); }) {
+      auto acc = ratings.fast_accumulator();
       if (edge_weighted) {
         for (EdgeID e = e_begin; e < e_end; ++e) {
           acc.add(_state_view.cluster(g_edges[e]), g_ew[e]);

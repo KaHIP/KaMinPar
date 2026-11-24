@@ -198,6 +198,66 @@ public:
     Value _initial_value;
   };
 
+  class FastAccumulator {
+  public:
+    FastAccumulator(const FastAccumulator &) = delete;
+    FastAccumulator &operator=(const FastAccumulator &) = delete;
+    FastAccumulator(FastAccumulator &&) = delete;
+    FastAccumulator &operator=(FastAccumulator &&) = delete;
+
+    KAMINPAR_INLINE ~FastAccumulator() {
+      *_size_ptr = _size;
+    }
+
+    KAMINPAR_INLINE void add(const Key key, const Value value) {
+      constexpr std::uint64_t kGoldenRatio = 0x9e3779b97f4a7c15ULL;
+      std::size_t slot = (static_cast<std::uint64_t>(key) * kGoldenRatio) >> _hash_shift;
+      while (true) {
+        const std::uint64_t metadata = _sparse[slot].metadata;
+        if (sparse_timestamp(metadata) != _timestamp) {
+          KASSERT(_size <= _mask, "fixed-capacity rating map is full");
+          const auto dense_index = static_cast<std::uint32_t>(_size++);
+          _dense[dense_index] = {.key = key, .value = _initial_value + value};
+          _sparse[slot].metadata = pack_sparse_metadata(dense_index, _timestamp);
+          return;
+        }
+        const std::uint32_t dense_index = sparse_dense_index(metadata);
+        KASSERT(dense_index < _size);
+        if (_dense[dense_index].key == key) {
+          _dense[dense_index].value += value;
+          return;
+        }
+        slot = (slot + 1) & _mask;
+      }
+    }
+
+    [[nodiscard]] KAMINPAR_INLINE std::size_t size() const {
+      return _size;
+    }
+
+  private:
+    friend class FixedCapacityRatingMap;
+
+    explicit FastAccumulator(FixedCapacityRatingMap *map)
+        : _sparse(map->_sparse.get()),
+          _dense(map->_dense.get()),
+          _size_ptr(&map->_size),
+          _size(map->_size),
+          _mask(map->_capacity - 1),
+          _hash_shift(map->_hash_shift),
+          _timestamp(map->_timestamp),
+          _initial_value(map->_initial_value) {}
+
+    SparseElement *__restrict__ _sparse;
+    Element *__restrict__ _dense;
+    std::size_t *_size_ptr;
+    std::size_t _size;
+    std::size_t _mask;
+    int _hash_shift;
+    std::uint32_t _timestamp;
+    Value _initial_value;
+  };
+
   explicit FixedCapacityRatingMap(
       const Value initial_value = Value(), const bool allocate_storage = true
   )
@@ -227,6 +287,11 @@ public:
   [[nodiscard]] Accumulator accumulator() {
     KASSERT(is_allocated());
     return Accumulator(this);
+  }
+
+  [[nodiscard]] FastAccumulator fast_accumulator() {
+    KASSERT(is_allocated());
+    return FastAccumulator(this);
   }
 
   void set_capacity(const std::size_t capacity) {
