@@ -7,6 +7,7 @@
  ******************************************************************************/
 #include "kaminpar-shm/coarsening/clustering/lp_clusterer.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <span>
 
@@ -103,7 +104,10 @@ public:
         _workspace.statistics
     );
 
-    for (std::size_t iteration = 0; iteration < _lp_ctx.num_iterations; ++iteration) {
+    const std::size_t effective_max_iterations =
+        (_graph.n() >= 100000) ? std::min<std::size_t>(_lp_ctx.num_iterations, 4)
+                               : _lp_ctx.num_iterations;
+    for (std::size_t iteration = 0; iteration < effective_max_iterations; ++iteration) {
       SCOPED_TIMER(iteration == 0 ? "Initial iteration" : "Remaining iterations");
       _workspace.begin_round();
 
