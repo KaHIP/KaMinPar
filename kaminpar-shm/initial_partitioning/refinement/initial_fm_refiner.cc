@@ -170,7 +170,7 @@ void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
     _weighted_degrees.resize(graph.n());
   }
 
-  init_weighted_degrees();
+  _weighted_degrees_ready = false;
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
@@ -364,24 +364,52 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
   const EdgeID *__restrict__ g_nodes = g.raw_nodes().data();
   const NodeID *__restrict__ g_edges = g.raw_edges().data();
   const BlockID *__restrict__ part = p_graph.raw_partition().data();
-  const EdgeWeight *__restrict__ wd = _weighted_degrees.data();
-
+  EdgeWeight *__restrict__ wd = _weighted_degrees.data();
+  const bool edge_weighted = g.is_edge_weighted();
+  const EdgeWeight *__restrict__ g_ew = edge_weighted ? g.raw_edge_weights().data() : nullptr;
   const bool forward = _rand.random_bool();
-  auto scan_full = [&](auto weighted_tag) {
+  const bool compute_wd = !_weighted_degrees_ready;
+
+  auto scan_full = [&](auto weighted_tag, auto compute_wd_tag) {
     constexpr bool kWeighted = decltype(weighted_tag)::value;
-    const EdgeWeight *g_ew = kWeighted ? g.raw_edge_weights().data() : nullptr;
+    constexpr bool kComputeWd = decltype(compute_wd_tag)::value;
     const auto process_node = [&](const NodeID u) {
       const BlockID u_block = part[u];
+      const EdgeID e_begin = g_nodes[u];
+      const EdgeID e_end = g_nodes[u + 1];
       EdgeWeight ext = 0;
-      for (EdgeID e = g_nodes[u]; e < g_nodes[u + 1]; ++e) {
-        if constexpr (kWeighted) {
-          ext += (part[g_edges[e]] != u_block) ? g_ew[e] : 0;
+      EdgeWeight u_wd;
+
+      if constexpr (kWeighted) {
+        if constexpr (kComputeWd) {
+          EdgeWeight total_w = 0;
+          for (EdgeID e = e_begin; e < e_end; ++e) {
+            const EdgeWeight w = g_ew[e];
+            total_w += w;
+            ext += (part[g_edges[e]] != u_block) ? w : 0;
+          }
+          wd[u] = total_w;
+          u_wd = total_w;
         } else {
+          for (EdgeID e = e_begin; e < e_end; ++e) {
+            ext += (part[g_edges[e]] != u_block) ? g_ew[e] : 0;
+          }
+          u_wd = wd[u];
+        }
+      } else {
+        if constexpr (kComputeWd) {
+          u_wd = static_cast<EdgeWeight>(e_end - e_begin);
+          wd[u] = u_wd;
+        } else {
+          u_wd = wd[u];
+        }
+        for (EdgeID e = e_begin; e < e_end; ++e) {
           ext += (part[g_edges[e]] != u_block);
         }
       }
+
       if (ext != 0) {
-        _queues[u_block].push_unsorted(u, wd[u] - 2 * ext);
+        _queues[u_block].push_unsorted(u, u_wd - 2 * ext);
         total_external_weight += ext;
       }
     };
@@ -396,11 +424,21 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
       }
     }
   };
-  if (g.is_edge_weighted()) {
-    scan_full(std::true_type{});
+
+  if (edge_weighted) {
+    if (compute_wd) {
+      scan_full(std::true_type{}, std::true_type{});
+    } else {
+      scan_full(std::true_type{}, std::false_type{});
+    }
   } else {
-    scan_full(std::false_type{});
+    if (compute_wd) {
+      scan_full(std::false_type{}, std::true_type{});
+    } else {
+      scan_full(std::false_type{}, std::false_type{});
+    }
   }
+  _weighted_degrees_ready = true;
 
   _queues[0].build_heap();
   _queues[1].build_heap();

@@ -107,6 +107,7 @@ private:
   Marker<> _marker{0};
   ScalableVector<EdgeWeight> _weighted_degrees{};
   std::vector<NodeID> _moves;
+  bool _weighted_degrees_ready = false;
 
   StoppingPolicy _stopping_policy{};
 
