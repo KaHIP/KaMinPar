@@ -30,6 +30,52 @@ public:
   explicit ClusteringSelector(const ClusteringStateView state) : _state(state) {}
 
   template <typename Map, typename TieContainer>
+  [[nodiscard]] NodeID select_cluster(
+      const NodeID from,
+      const NodeWeight u_weight,
+      Map &ratings,
+      Random &random,
+      TieContainer &ties
+  ) const {
+    NodeID best = from;
+    EdgeWeight best_rating = 0;
+    UniformTieSet best_ties(ties);
+    for (const auto [cluster, rating] : ratings.entries()) {
+      if (rating > best_rating && accepts(cluster, from, u_weight)) {
+        best = cluster;
+        best_rating = rating;
+        best_ties.replace_with(cluster);
+      } else if (rating == best_rating && accepts(cluster, from, u_weight)) {
+        best_ties.add(cluster);
+      }
+    }
+    best = best_ties.select_or(best, random);
+    best_ties.clear();
+    return best;
+  }
+
+  template <typename Map, typename TieContainer>
+  [[nodiscard]] NodeID select_favored_cluster(
+      const NodeID from, Map &ratings, Random &random, TieContainer &favored_ties
+  ) const {
+    NodeID favored = from;
+    EdgeWeight favored_rating = 0;
+    UniformTieSet ties(favored_ties);
+    for (const auto [cluster, rating] : ratings.entries()) {
+      if (rating > favored_rating) {
+        favored = cluster;
+        favored_rating = rating;
+        ties.replace_with(cluster);
+      } else if (rating == favored_rating) {
+        ties.add(cluster);
+      }
+    }
+    favored = ties.select_or(favored, random);
+    ties.clear();
+    return favored;
+  }
+
+  template <typename Map, typename TieContainer>
   [[nodiscard]] Selection select(
       const NodeID from,
       const NodeWeight u_weight,
