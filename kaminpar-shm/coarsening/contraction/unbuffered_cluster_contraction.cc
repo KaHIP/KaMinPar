@@ -122,6 +122,19 @@ private:
   std::uint32_t _timestamp = 1;
 };
 
+template <typename Map, typename Visitor>
+KAMINPAR_INLINE void for_each_collected_edge(Map &map, Visitor &&visit) {
+  for (const auto [neighbor, weight] : map.entries()) {
+    visit(neighbor, weight);
+  }
+}
+
+template <std::size_t kCapacity, typename Visitor>
+KAMINPAR_INLINE void
+for_each_collected_edge(FlatContractionMap<kCapacity> &map, Visitor &&visit) {
+  map.for_each_entry(std::forward<Visitor>(visit));
+}
+
 class NeighborhoodsBuffer {
   static constexpr NodeID kMaxNumNodes = 4096;
   static constexpr EdgeID kMaxNumEdges = 32768;
@@ -269,23 +282,15 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     c_nodes[new_c_u] = edge;
     c_node_weights[new_c_u] = c_u_weight;
 
-    if constexpr (requires { map.for_each_entry([](NodeID, EdgeWeight) {}); }) {
-      map.for_each_entry([&](const NodeID c_v, const EdgeWeight weight) {
-        c_edges[edge] = c_v;
-        c_edge_weights[edge] = weight;
-        edge += 1;
-      });
-    } else {
-      for (const auto [c_v, weight] : map.entries()) {
-        c_edges[edge] = c_v;
-        c_edge_weights[edge] = weight;
-        edge += 1;
-      }
-    }
+    for_each_collected_edge(map, [&](const NodeID c_v, const EdgeWeight weight) {
+      c_edges[edge] = c_v;
+      c_edge_weights[edge] = weight;
+      edge += 1;
+    });
   };
 
   struct alignas(64) NextCoarseNodeInfo {
-    std::atomic_flag lock = ATOMIC_FLAG_INIT;
+    std::atomic<bool> lock{false};
     std::uint64_t c_u = 0;
     std::uint64_t edge = 0;
   };
@@ -293,15 +298,15 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   NextCoarseNodeInfo next_coarse_node_info;
   const auto atomic_fetch_next_coarse_node_info = [&](const std::uint64_t nodes,
                                                       const std::uint64_t degree) {
-    while (next_coarse_node_info.lock.test_and_set(std::memory_order_acquire)) {
-      while (next_coarse_node_info.lock.test(std::memory_order_relaxed)) {
+    while (next_coarse_node_info.lock.exchange(true, std::memory_order_acquire)) {
+      while (next_coarse_node_info.lock.load(std::memory_order_relaxed)) {
       }
     }
     const std::uint64_t cur_c_u = next_coarse_node_info.c_u;
     const std::uint64_t cur_edge = next_coarse_node_info.edge;
     next_coarse_node_info.c_u = cur_c_u + nodes;
     next_coarse_node_info.edge = cur_edge + degree;
-    next_coarse_node_info.lock.clear(std::memory_order_release);
+    next_coarse_node_info.lock.store(false, std::memory_order_release);
     return std::make_pair(cur_c_u, cur_edge);
   };
 
@@ -337,14 +342,8 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       return;
     }
 
-    neighborhood_buffer.add(c_u, degree, c_u_weight, [&](auto &&l) {
-      if constexpr (requires { edge_collector.for_each_entry([](NodeID, EdgeWeight) {}); }) {
-        edge_collector.for_each_entry(l);
-      } else {
-        for (const auto [c_v, weight] : edge_collector.entries()) {
-          l(c_v, weight);
-        }
-      }
+    neighborhood_buffer.add(c_u, degree, c_u_weight, [&](auto &&visit) {
+      for_each_collected_edge(edge_collector, visit);
     });
   };
 
