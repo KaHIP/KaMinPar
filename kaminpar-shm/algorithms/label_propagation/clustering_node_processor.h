@@ -218,6 +218,31 @@ private:
       const NodeWeight u_weight = _graph.node_weight(u);
       const NodeID from = _state_view.cluster(u);
 
+      if (degree == 1) {
+        const NodeID v = g_edges[e_begin];
+        const NodeID c_v = _state_view.cluster(v);
+        if constexpr (kTrackActive) {
+          _state_view.deactivate(u);
+        }
+        if (c_v != from) {
+          const bool accepts =
+              (!_state_view.has_communities() ||
+               _state_view.accepts_community_unchecked(from, c_v));
+          const MoveResult result =
+              accepts ? _state_view.commit<false, kTrackActive>(_graph, u, from, c_v, u_weight)
+                      : MoveResult{};
+          if (result.moved) {
+            record_move(result, local);
+            return;
+          }
+        }
+        const NodeWeight from_weight = _state_view.cluster_weight(from);
+        if (u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2) {
+          _state_view.set_favored_cluster(u, c_v);
+        }
+        return;
+      }
+
       const std::size_t upper_bound =
           std::min<std::size_t>(static_cast<std::size_t>(degree), _graph.n());
       const std::size_t map_bound =
