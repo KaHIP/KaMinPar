@@ -79,11 +79,13 @@ public:
 private:
   template <bool kFirstIteration>
   void visit_impl(const NodeID u, LocalWorker &local) {
-    if constexpr (std::is_same_v<std::decay_t<Graph>, CSRGraph>) {
-      if (!_state.has_communities()) [[likely]] {
+    if (!_state.has_communities()) [[likely]] {
+      if constexpr (std::is_same_v<std::decay_t<Graph>, CSRGraph>) {
         visit_csr_unrestricted<kFirstIteration>(u, local);
-        return;
+      } else {
+        visit_unrestricted<kFirstIteration>(u, local);
       }
+      return;
     }
 
     const NodeWeight u_weight = _graph.node_weight(u);
@@ -201,6 +203,59 @@ private:
       ++local.stats.moved;
     }
   }
+
+  template <bool kFirstIteration>
+  void visit_unrestricted(const NodeID u, LocalWorker &local) {
+    const BlockID from = _state.cluster(u);
+    const std::size_t upper_bound = std::min<BlockID>(_graph.degree(u), _num_blocks);
+    const BlockID to = local.ratings.execute(upper_bound, [&](auto &ratings) {
+      EdgeWeight internal_rating = 0;
+      bool has_internal_neighbor = false;
+      bool boundary = false;
+      const auto collect = [&](auto add_rating) {
+        // Decode the neighborhood once and start updating ratings at the first external edge.
+        _graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+          const BlockID block = _state.cluster(v);
+          if (!boundary) {
+            if (block == from) {
+              has_internal_neighbor = true;
+              internal_rating += weight;
+              return;
+            }
+
+            boundary = true;
+            if (has_internal_neighbor) {
+              add_rating(from, internal_rating);
+            }
+          }
+          add_rating(block, weight);
+        });
+      };
+
+      if constexpr (requires { ratings.fast_accumulator(); }) {
+        auto accumulator = ratings.fast_accumulator();
+        collect([&](const BlockID block, const EdgeWeight weight) { accumulator.add(block, weight); });
+      } else {
+        collect([&](const BlockID block, const EdgeWeight weight) { ratings[block] += weight; });
+      }
+
+      if constexpr (!kFirstIteration) {
+        _state.deactivate(u);
+      }
+      if (!boundary) {
+        return from;
+      }
+      const NodeWeight u_weight = _graph.node_weight(u);
+      const BlockID selected = _selector.select(from, u_weight, ratings, local.random, local.ties);
+      ratings.clear();
+      return selected;
+    });
+
+    if (to != from && _state.commit(_graph, u, from, to, _graph.node_weight(u))) {
+      ++local.stats.moved;
+    }
+  }
+
   const Graph &_graph;
   BalancedState &_state;
   RatingMaps &_rating_maps;
