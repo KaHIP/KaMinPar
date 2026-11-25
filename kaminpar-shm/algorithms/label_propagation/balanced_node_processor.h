@@ -121,9 +121,12 @@ private:
 
     const bool edge_weighted = _graph.is_edge_weighted();
     const EdgeWeight *g_ew = edge_weighted ? _graph.raw_edge_weights().data() : nullptr;
+    const EdgeID degree = e_end - e_begin;
+    // On an unweighted graph, a strict majority outweighs all remaining edges.
+    const EdgeID e_prefix_end = edge_weighted ? e_end : e_begin + std::min(degree, degree / 2 + 1);
 
     // Loop 1: fast prefix scan while neighbors remain in block `from`.
-    // Interior nodes exit here without touching the rating map, selector, or block weights.
+    // Reaching the scan limit avoids touching the rating map, selector, or block weights.
     EdgeID e = e_begin;
     EdgeWeight internal_rating = 0;
     if (edge_weighted) {
@@ -136,7 +139,7 @@ private:
         ++e;
       }
     } else {
-      while (e < e_end) {
+      while (e < e_prefix_end) {
         const BlockID b = __atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED);
         if (b != from) {
           break;
@@ -146,7 +149,7 @@ private:
       internal_rating = static_cast<EdgeWeight>(e - e_begin);
     }
 
-    if (e == e_end) {
+    if (e == e_prefix_end) {
       if constexpr (!kFirstIteration) {
         _state.deactivate(u);
       }
@@ -155,8 +158,7 @@ private:
 
     // Loop 2: boundary node — accumulate remaining neighbors without interior-check branching.
     const NodeWeight u_weight = _graph.node_weight(u);
-    const std::size_t upper_bound =
-        std::min<BlockID>(static_cast<NodeID>(e_end - e_begin), _num_blocks);
+    const std::size_t upper_bound = std::min<BlockID>(static_cast<NodeID>(degree), _num_blocks);
     const BlockID to = local.ratings.execute(upper_bound, [&](auto &ratings) {
       if constexpr (requires { ratings.fast_accumulator(); }) {
         auto acc = ratings.fast_accumulator();
