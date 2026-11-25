@@ -18,12 +18,17 @@ public:
   void reset(
       PartitionedGraph &p_graph,
       const PartitionContext &p_ctx,
-      const std::span<const NodeID> communities
+      const std::span<const NodeID> communities,
+      const bool activate_all = true
   ) {
     _p_graph = &p_graph;
     _p_ctx = &p_ctx;
     _communities = communities;
-    _active.reset(p_graph.n());
+    if (activate_all) {
+      _active.reset(p_graph.n());
+    } else {
+      _active.reset_inactive(p_graph.n());
+    }
   }
 
   [[nodiscard]] BlockID cluster(const NodeID u) const {
@@ -40,6 +45,14 @@ public:
 
   [[nodiscard]] BlockWeight min_cluster_weight(const BlockID block) const {
     return _p_ctx->min_block_weight(block);
+  }
+
+  [[nodiscard]] bool has_communities() const {
+    return !_communities.empty();
+  }
+
+  [[nodiscard]] const BlockID *raw_partition() const {
+    return _p_graph->raw_partition().data();
   }
 
   [[nodiscard]] bool accepts_neighbor(const NodeID u, const NodeID v) const {
@@ -61,7 +74,7 @@ public:
     }
 
     _p_graph->set_block<false>(u, to);
-    _active.activate_neighbors(graph, u, [](const NodeID) { return true; });
+    _active.activate_neighbors(graph, u, [this](const NodeID v) { return !_active.contains(v); });
     return true;
   }
 

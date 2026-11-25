@@ -76,14 +76,22 @@ public:
 
   bool refine(PartitionedCSRGraph &p_graph, const PartitionContext &p_ctx) final;
 
+  [[nodiscard]] std::optional<EdgeWeight> last_edge_cut() const final {
+    return _last_edge_cut;
+  }
+
 private:
   [[nodiscard]] bool abort(EdgeWeight prev_edge_weight, EdgeWeight cur_edge_weight) const;
 
-  EdgeWeight round(PartitionedCSRGraph &p_graph);
+  EdgeWeight round(
+      PartitionedCSRGraph &p_graph,
+      EdgeWeight *out_initial_cut = nullptr,
+      bool incremental = false
+  );
 
-  void init_pq(const PartitionedCSRGraph &p_graph);
+  EdgeWeight init_pq(const PartitionedCSRGraph &p_graph, bool incremental);
 
-  void insert_node(const PartitionedCSRGraph &p_graph, NodeID u);
+  EdgeWeight insert_node(const PartitionedCSRGraph &p_graph, NodeID u);
 
   EdgeWeight compute_gain_from_scratch(const PartitionedCSRGraph &p_graph, NodeID u);
 
@@ -101,8 +109,12 @@ private:
       BinaryMinHeap<EdgeWeight>{0}, BinaryMinHeap<EdgeWeight>{0}
   };
   Marker<> _marker{0};
+  Marker<> _boundary_marker{0};
   ScalableVector<EdgeWeight> _weighted_degrees{};
   std::vector<NodeID> _moves;
+  std::vector<NodeID> _accepted_moves;
+  std::vector<NodeID> _boundary_nodes;
+  bool _weighted_degrees_ready = false;
 
   StoppingPolicy _stopping_policy{};
 
@@ -110,6 +122,7 @@ private:
 
   RandomPermutations<NodeID, kChunkSize, kNumberOfNodePermutations> _permutations;
   std::vector<NodeID> _chunks;
+  std::optional<EdgeWeight> _last_edge_cut;
 };
 
 using InitialSimple2WayFM = InitialFMRefiner<

@@ -41,6 +41,7 @@ private:
 
   InitialBipartitionerWorkerPool &_bipartitioner_pool;
   TemporarySubgraphMemoryEts &_tmp_extraction_mem_pool_ets;
+  SubgraphMemoryEts _extraction_mem_pool_ets;
 };
 
 } // namespace kaminpar::shm::partitioning

@@ -6,17 +6,25 @@
  ******************************************************************************/
 #include "kaminpar-shm/graphutils/subgraph_extractor.h"
 
+#include <algorithm>
+#include <type_traits>
+#include <vector>
+
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
+#include <tbb/task_arena.h>
 
+#include "kaminpar-shm/datastructures/csr_graph.h"
 #include "kaminpar-shm/kaminpar.h"
 #include "kaminpar-shm/metrics.h"
 #include "kaminpar-shm/partitioning/partition_utils.h"
 
 #include "kaminpar-common/assert.h"
+#include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/logger.h"
 #include "kaminpar-common/parallel/algorithm.h"
+#include "kaminpar-common/parallel/loops.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::graph {
@@ -184,67 +192,90 @@ lazy_extract_subgraphs_preprocessing(const PartitionedGraph &p_graph) {
   const BlockID k = p_graph.k();
 
   StaticArray<NodeID> mapping(n, static_array::noinit);
-  StaticArray<NodeID> block_nodes_offset(p_graph.k() + 1);
+  StaticArray<NodeID> block_nodes_offset(k + 1);
   StaticArray<NodeID> block_nodes(n, static_array::noinit);
-  StaticArray<EdgeID> block_num_edges(p_graph.k());
+  StaticArray<EdgeID> block_num_edges(k);
 
-  tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
-    return ScalableVector<NodeID>(k);
-  }};
-  tbb::enumerable_thread_specific<ScalableVector<EdgeID>> tl_num_edges_in_block{[&] {
-    return ScalableVector<EdgeID>(k);
-  }};
+  if (n == 0) {
+    return {
+        std::move(mapping),
+        std::move(block_nodes_offset),
+        std::move(block_nodes),
+        std::move(block_num_edges),
+    };
+  }
+
+  const std::size_t cpus = std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n);
+  CacheAlignedVector<std::vector<NodeID>> local_nodes(cpus + 1, std::vector<NodeID>(k, 0));
+  CacheAlignedVector<std::vector<EdgeID>> local_edges(cpus, std::vector<EdgeID>(k, 0));
+
+  const BlockID *__restrict__ part = p_graph.raw_partition().data();
   reified(p_graph, [&](const auto &graph) {
-    tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
-      auto &num_nodes_in_block = tl_num_nodes_in_block.local();
-      auto &num_edges_in_block = tl_num_edges_in_block.local();
+    parallel::deterministic_for<NodeID>(
+        0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+          NodeID *__restrict__ num_nodes_in_block = local_nodes[cpu + 1].data();
+          EdgeID *__restrict__ num_edges_in_block = local_edges[cpu].data();
 
-      const NodeID first_node = local_nodes.begin();
-      const NodeID last_node = local_nodes.end();
-
-      for (NodeID u = first_node; u < last_node; ++u) {
-        const BlockID b = p_graph.block(u);
-        num_nodes_in_block[b] += 1;
-
-        graph.adjacent_nodes(u, [&](const NodeID v) {
-          if (p_graph.block(v) == b) {
-            num_edges_in_block[b] += 1;
+          if constexpr (std::is_same_v<std::decay_t<decltype(graph)>, CSRGraph>) {
+            const EdgeID *__restrict__ g_nodes = graph.raw_nodes().data();
+            const NodeID *__restrict__ g_edges = graph.raw_edges().data();
+            for (NodeID u = from; u < to; ++u) {
+              const BlockID b = part[u];
+              num_nodes_in_block[b] += 1;
+              EdgeID deg_in_block = 0;
+              const EdgeID e_begin = g_nodes[u];
+              const EdgeID e_end = g_nodes[u + 1];
+              for (EdgeID e = e_begin; e < e_end; ++e) {
+                deg_in_block += (part[g_edges[e]] == b);
+              }
+              num_edges_in_block[b] += deg_in_block;
+            }
+          } else {
+            for (NodeID u = from; u < to; ++u) {
+              const BlockID b = part[u];
+              num_nodes_in_block[b] += 1;
+              graph.adjacent_nodes(u, [&](const NodeID v) {
+                if (part[v] == b) {
+                  num_edges_in_block[b] += 1;
+                }
+              });
+            }
           }
-        });
-      }
-    });
+        }
+    );
   });
 
-  tbb::parallel_for<BlockID>(0, k, [&](const BlockID b) {
-    NodeID num_block_nodes = 0;
-    for (const auto &local_num_nodes : tl_num_nodes_in_block) {
-      num_block_nodes += local_num_nodes[b];
+  // Prefix sum per-block counts across threads (zero atomics in scatter pass)
+  for (BlockID b = 0; b < k; ++b) {
+    NodeID sum_nodes = 0;
+    EdgeID sum_edges = 0;
+    for (std::size_t cpu = 0; cpu < cpus; ++cpu) {
+      const NodeID cnt = local_nodes[cpu + 1][b];
+      local_nodes[cpu][b] = sum_nodes;
+      sum_nodes += cnt;
+      sum_edges += local_edges[cpu][b];
     }
-    block_nodes_offset[b + 1] = num_block_nodes;
-
-    EdgeID num_block_edges = 0;
-    for (const auto &local_num_edges : tl_num_edges_in_block) {
-      num_block_edges += local_num_edges[b];
-    }
-    block_num_edges[b] = num_block_edges;
-  });
+    block_nodes_offset[b + 1] = sum_nodes;
+    block_num_edges[b] = sum_edges;
+  }
   parallel::prefix_sum(
       block_nodes_offset.begin(), block_nodes_offset.end(), block_nodes_offset.begin()
   );
 
-  StaticArray<NodeID> block_node_index(p_graph.k());
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, n), [&](auto &local_nodes) {
-    const NodeID first_node = local_nodes.begin();
-    const NodeID last_node = local_nodes.end();
-
-    for (NodeID u = first_node; u < last_node; ++u) {
-      const BlockID b = p_graph.block(u);
-      const NodeID offset = block_nodes_offset[b];
-      const NodeID i = __atomic_fetch_add(&block_node_index[b], 1, __ATOMIC_RELAXED);
-      block_nodes[offset + i] = u;
-      mapping[u] = i;
-    }
-  });
+  const NodeID *__restrict__ offsets = block_nodes_offset.data();
+  NodeID *__restrict__ bn_ptr = block_nodes.data();
+  NodeID *__restrict__ map_ptr = mapping.data();
+  parallel::deterministic_for<NodeID>(
+      0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+        NodeID *__restrict__ cur_idx = local_nodes[cpu].data();
+        for (NodeID u = from; u < to; ++u) {
+          const BlockID b = part[u];
+          const NodeID i = cur_idx[b]++;
+          bn_ptr[offsets[b] + i] = u;
+          map_ptr[u] = i;
+        }
+      }
+  );
 
   return {
       std::move(mapping),
@@ -339,66 +370,94 @@ SubgraphExtractionResult extract_subgraphs_generic_graph(
     SubgraphMemory &subgraph_memory
 ) {
   const NodeID n = p_graph.graph().n();
+  const BlockID k = p_graph.k();
 
   START_TIMER("Allocation");
-  StaticArray<NodeID> mapping(n);
-  StaticArray<SubgraphMemoryStartPosition> start_positions(p_graph.k() + 1);
-  StaticArray<NodeID> bucket_index(p_graph.k());
-  ScalableVector<shm::Graph> subgraphs(p_graph.k());
+  StaticArray<NodeID> mapping(n, static_array::noinit);
+  StaticArray<SubgraphMemoryStartPosition> start_positions(k + 1);
+  StaticArray<NodeID> bucket_index(k);
+  ScalableVector<shm::Graph> subgraphs(k);
   STOP_TIMER();
 
-  // count number of nodes and edges in each block
+  // count number of nodes and edges in each block (zero-atomic deterministic scatter)
   START_TIMER("Count block size");
-  tbb::enumerable_thread_specific<ScalableVector<NodeID>> tl_num_nodes_in_block{[&] {
-    return ScalableVector<NodeID>(p_graph.k());
-  }};
-  tbb::enumerable_thread_specific<ScalableVector<EdgeID>> tl_num_edges_in_block{[&] {
-    return ScalableVector<EdgeID>(p_graph.k());
-  }};
+  const std::size_t cpus =
+      n > 0 ? std::min<std::size_t>(tbb::this_task_arena::max_concurrency(), n) : 1;
+  CacheAlignedVector<std::vector<NodeID>> local_nodes(cpus + 1, std::vector<NodeID>(k, 0));
+  CacheAlignedVector<std::vector<EdgeID>> local_edges(cpus, std::vector<EdgeID>(k, 0));
+  const BlockID *__restrict__ part = p_graph.raw_partition().data();
 
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()), [&](auto &r) {
-    auto &num_nodes_in_block = tl_num_nodes_in_block.local();
-    auto &num_edges_in_block = tl_num_edges_in_block.local();
+  if (n > 0) {
+    parallel::deterministic_for<NodeID>(
+        0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+          NodeID *__restrict__ num_nodes_in_block = local_nodes[cpu + 1].data();
+          EdgeID *__restrict__ num_edges_in_block = local_edges[cpu].data();
 
-    for (NodeID u = r.begin(); u != r.end(); ++u) {
-      const BlockID u_block = p_graph.block(u);
-      ++num_nodes_in_block[u_block];
-      graph.adjacent_nodes(u, [&](const NodeID v) {
-        if (p_graph.block(v) == u_block) {
-          ++num_edges_in_block[u_block];
+          if constexpr (std::is_same_v<std::decay_t<Graph>, CSRGraph>) {
+            const EdgeID *__restrict__ g_nodes = graph.raw_nodes().data();
+            const NodeID *__restrict__ g_edges = graph.raw_edges().data();
+            for (NodeID u = from; u < to; ++u) {
+              const BlockID u_block = part[u];
+              ++num_nodes_in_block[u_block];
+              EdgeID deg = 0;
+              const EdgeID e_begin = g_nodes[u];
+              const EdgeID e_end = g_nodes[u + 1];
+              for (EdgeID e = e_begin; e < e_end; ++e) {
+                deg += (part[g_edges[e]] == u_block);
+              }
+              num_edges_in_block[u_block] += deg;
+            }
+          } else {
+            for (NodeID u = from; u < to; ++u) {
+              const BlockID u_block = part[u];
+              ++num_nodes_in_block[u_block];
+              graph.adjacent_nodes(u, [&](const NodeID v) {
+                if (part[v] == u_block) {
+                  ++num_edges_in_block[u_block];
+                }
+              });
+            }
+          }
         }
-      });
-    }
-  });
+    );
+  }
   STOP_TIMER();
 
   START_TIMER("Merge block sizes");
-  tbb::parallel_for<BlockID>(0, p_graph.k(), [&](const BlockID b) {
-    NodeID num_nodes = partitioning::compute_final_k(
-        b, p_graph.k(), input_k
-    ); // padding for sequential subgraph extraction
-    EdgeID num_edges = 0;
-    for (auto &local_num_nodes : tl_num_nodes_in_block) {
-      num_nodes += local_num_nodes[b];
+  for (BlockID b = 0; b < k; ++b) {
+    NodeID sum_nodes = 0;
+    EdgeID sum_edges = 0;
+    for (std::size_t cpu = 0; cpu < cpus; ++cpu) {
+      const NodeID cnt = local_nodes[cpu + 1][b];
+      local_nodes[cpu][b] = sum_nodes;
+      sum_nodes += cnt;
+      sum_edges += local_edges[cpu][b];
     }
-    for (auto &local_num_edges : tl_num_edges_in_block) {
-      num_edges += local_num_edges[b];
-    }
-    start_positions[b + 1].nodes_start_pos = num_nodes;
-    start_positions[b + 1].edges_start_pos = num_edges;
-  });
+    bucket_index[b] = sum_nodes;
+    start_positions[b + 1].nodes_start_pos =
+        sum_nodes + partitioning::compute_final_k(b, k, input_k);
+    start_positions[b + 1].edges_start_pos = sum_edges;
+  }
   parallel::prefix_sum(start_positions.begin(), start_positions.end(), start_positions.begin());
   STOP_TIMER();
 
-  // build temporary bucket array in nodes array
+  // build temporary bucket array in nodes array without atomics
   START_TIMER("Build bucket array");
-  tbb::parallel_for<NodeID>(0, n, [&](const NodeID u) {
-    const BlockID b = p_graph.block(u);
-    const NodeID pos_in_subgraph = __atomic_fetch_add(&bucket_index[b], 1, __ATOMIC_RELAXED);
-    const NodeID pos = start_positions[b].nodes_start_pos + pos_in_subgraph;
-    subgraph_memory.nodes[pos] = u;
-    mapping[u] = pos_in_subgraph; // concurrent random access write
-  });
+  if (n > 0) {
+    EdgeID *__restrict__ sm_nodes = subgraph_memory.nodes.data();
+    NodeID *__restrict__ map_ptr = mapping.data();
+    parallel::deterministic_for<NodeID>(
+        0, n, [&](const NodeID from, const NodeID to, const std::size_t cpu) {
+          NodeID *__restrict__ cur_idx = local_nodes[cpu].data();
+          for (NodeID u = from; u < to; ++u) {
+            const BlockID b = part[u];
+            const NodeID pos_in_subgraph = cur_idx[b]++;
+            sm_nodes[start_positions[b].nodes_start_pos + pos_in_subgraph] = u;
+            map_ptr[u] = pos_in_subgraph;
+          }
+        }
+    );
+  }
   STOP_TIMER();
 
   const bool is_node_weighted = p_graph.graph().is_node_weighted();

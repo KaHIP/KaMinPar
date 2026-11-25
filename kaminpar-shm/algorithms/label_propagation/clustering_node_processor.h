@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <optional>
+#include <type_traits>
 
 #include <tbb/concurrent_vector.h>
 
@@ -17,6 +18,7 @@
 #include "kaminpar-shm/algorithms/label_propagation/node_processing.h"
 #include "kaminpar-shm/algorithms/label_propagation/parallel_rating_map.h"
 #include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 
 #include "kaminpar-common/datastructures/cache_aligned_vector.h"
 #include "kaminpar-common/inline.h"
@@ -91,11 +93,19 @@ public:
   }
 
   KAMINPAR_INLINE void visit(const NodeID u, LocalWorker &local) {
-    visit_impl<false>(u, local);
+    visit_impl<false, true>(u, local);
+  }
+
+  KAMINPAR_INLINE void visit_final(const NodeID u, LocalWorker &local) {
+    visit_impl<false, false>(u, local);
   }
 
   void visit_first_phase(const NodeID u, LocalWorker &local) {
-    visit_impl<true>(u, local);
+    visit_impl<true, true>(u, local);
+  }
+
+  void visit_first_phase_final(const NodeID u, LocalWorker &local) {
+    visit_impl<true, false>(u, local);
   }
 
   void finish_work_unit(LocalWorker &local) {
@@ -103,7 +113,7 @@ public:
     local.removed_clusters = 0;
   }
 
-  void process_deferred_nodes() {
+  void process_deferred_nodes(const bool activate_neighbors = true) {
     _parallel_ratings.ensure_capacity(_graph.n());
     auto &stats = _statistics.local();
     auto local = _rating_maps.local();
@@ -122,7 +132,9 @@ public:
           [&](const NodeID v) { return _state_view.cluster(v); },
           [](const NodeID) { return true; }
       );
-      _state_view.deactivate(u);
+      if (activate_neighbors) {
+        _state_view.deactivate(u);
+      }
 
       _parallel_ratings.for_each_partition_and_reset([&](const std::size_t i, auto &&entries) {
         auto scratch = _rating_maps.local();
@@ -180,7 +192,9 @@ public:
 
       remember_favored_cluster(u, from, selection, store_favored_cluster);
       const MoveResult result =
-          _state_view.commit<true>(_graph, u, from, selection.cluster, u_weight);
+          activate_neighbors
+              ? _state_view.commit<true, true>(_graph, u, from, selection.cluster, u_weight)
+              : _state_view.commit<true, false>(_graph, u, from, selection.cluster, u_weight);
       if (result.moved) {
         ++stats.moved;
       }
@@ -192,61 +206,189 @@ public:
   }
 
 private:
-  template <bool kDefer> KAMINPAR_INLINE void visit_impl(const NodeID u, LocalWorker &local) {
-    const NodeID degree = _graph.degree(u);
-    const NodeWeight u_weight = _graph.node_weight(u);
-    const NodeID from = _state_view.cluster(u);
-    const NodeWeight from_weight = _state_view.cluster_weight(from);
-    const bool store_favored_cluster =
-        u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2;
-    const std::size_t upper_bound = std::min<NodeID>(degree, _graph.n());
-    const std::size_t map_bound =
-        kDefer ? std::min(upper_bound, ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold)
-               : upper_bound;
+  template <bool kDefer, bool kTrackActive = true>
+  KAMINPAR_INLINE void visit_impl(const NodeID u, LocalWorker &local) {
+    if constexpr (std::is_same_v<std::decay_t<Graph>, CSRGraph>) {
+      const EdgeID *__restrict__ g_nodes = _graph.raw_nodes().data();
+      const NodeID *__restrict__ g_edges = _graph.raw_edges().data();
+      const EdgeID e_begin = g_nodes[u];
+      const EdgeID e_end = g_nodes[u + 1];
+      const EdgeID degree = e_end - e_begin;
 
-    const auto selection = local.ratings.execute(map_bound, [&](auto &ratings) {
-      if constexpr (kDefer) {
-        if (NeighborhoodRatings::accumulate_with_capacity(
-                _graph,
-                u,
-                ratings,
-                map_bound,
-                ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold,
-                [&](const NodeID v) { return _state_view.cluster(v); },
-                [](const NodeID) { return true; }
-            )) [[unlikely]] {
-          ratings.clear();
-          _deferred_nodes.push_back(u);
-          return std::optional<ClusteringSelector::Selection>{};
+      const NodeWeight u_weight = _graph.node_weight(u);
+      const NodeID from = _state_view.cluster(u);
+
+      if (degree == 1) {
+        const NodeID v = g_edges[e_begin];
+        const NodeID c_v = _state_view.cluster(v);
+        if constexpr (kTrackActive) {
+          _state_view.deactivate(u);
         }
-      } else {
-        NeighborhoodRatings::accumulate(
-            _graph,
-            u,
-            ratings,
-            [&](const NodeID v) { return _state_view.cluster(v); },
-            [](const NodeID) { return true; }
-        );
+        if (c_v != from) {
+          const bool accepts =
+              (!_state_view.has_communities() ||
+               _state_view.accepts_community_unchecked(from, c_v));
+          const MoveResult result =
+              accepts ? _state_view.commit<false, kTrackActive>(_graph, u, from, c_v, u_weight)
+                      : MoveResult{};
+          if (result.moved) {
+            record_move(result, local);
+            return;
+          }
+        }
+        const NodeWeight from_weight = _state_view.cluster_weight(from);
+        if (u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2) {
+          _state_view.set_favored_cluster(u, c_v);
+        }
+        return;
       }
 
-      _state_view.deactivate(u);
-      auto result = _selector.select(
-          from,
-          u_weight,
-          store_favored_cluster,
-          ratings,
-          local.random,
-          local.ties,
-          local.favored_ties
-      );
-      ratings.clear();
-      return std::optional<ClusteringSelector::Selection>{result};
-    });
+      const std::size_t upper_bound =
+          std::min<std::size_t>(static_cast<std::size_t>(degree), _graph.n());
+      const std::size_t map_bound =
+          kDefer ? std::min(upper_bound, ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold)
+                 : upper_bound;
 
-    if (selection) {
-      remember_favored_cluster(u, from, *selection, store_favored_cluster);
-      record_move(_state_view.commit(_graph, u, from, selection->cluster, u_weight), local);
+      const auto target = local.ratings.execute(map_bound, [&](auto &ratings) -> std::optional<NodeID> {
+        if (accumulate_csr<kDefer>(u, e_begin, e_end, upper_bound, g_edges, ratings)) [[unlikely]] {
+          ratings.clear();
+          _deferred_nodes.push_back(u);
+          return std::nullopt;
+        }
+
+        if constexpr (kTrackActive) {
+          _state_view.deactivate(u);
+        }
+        const NodeID best = _selector.select_cluster(from, u_weight, ratings, local.random, local.ties);
+        if (best == from) {
+          const NodeWeight from_weight = _state_view.cluster_weight(from);
+          if (u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2) {
+            const NodeID favored =
+                _selector.select_favored_cluster(from, ratings, local.random, local.favored_ties);
+            _state_view.set_favored_cluster(u, favored);
+          }
+        }
+        ratings.clear();
+        return best;
+      });
+
+      if (target && *target != from) {
+        record_move(_state_view.commit<false, kTrackActive>(_graph, u, from, *target, u_weight), local);
+      }
+    } else {
+      const NodeID degree = _graph.degree(u);
+      const NodeWeight u_weight = _graph.node_weight(u);
+      const NodeID from = _state_view.cluster(u);
+      const std::size_t upper_bound = std::min<NodeID>(degree, _graph.n());
+      const std::size_t map_bound =
+          kDefer ? std::min(upper_bound, ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold)
+                 : upper_bound;
+
+      const auto target = local.ratings.execute(map_bound, [&](auto &ratings) -> std::optional<NodeID> {
+        if constexpr (kDefer) {
+          if (NeighborhoodRatings::accumulate_with_capacity(
+                  _graph,
+                  u,
+                  ratings,
+                  map_bound,
+                  ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold,
+                  [&](const NodeID v) { return _state_view.cluster(v); },
+                  [](const NodeID) { return true; }
+              )) [[unlikely]] {
+            ratings.clear();
+            _deferred_nodes.push_back(u);
+            return std::nullopt;
+          }
+        } else {
+          NeighborhoodRatings::accumulate(
+              _graph,
+              u,
+              ratings,
+              [&](const NodeID v) { return _state_view.cluster(v); },
+              [](const NodeID) { return true; }
+          );
+        }
+
+        if constexpr (kTrackActive) {
+          _state_view.deactivate(u);
+        }
+        const NodeID best = _selector.select_cluster(from, u_weight, ratings, local.random, local.ties);
+        if (best == from) {
+          const NodeWeight from_weight = _state_view.cluster_weight(from);
+          if (u_weight == from_weight && from_weight <= _state_view.max_cluster_weight(from) / 2) {
+            const NodeID favored =
+                _selector.select_favored_cluster(from, ratings, local.random, local.favored_ties);
+            _state_view.set_favored_cluster(u, favored);
+          }
+        }
+        ratings.clear();
+        return best;
+      });
+
+      if (target && *target != from) {
+        record_move(_state_view.commit<false, kTrackActive>(_graph, u, from, *target, u_weight), local);
+      }
     }
+  }
+
+  template <bool kDefer, typename Map>
+  [[nodiscard]] KAMINPAR_INLINE bool accumulate_csr(
+      const NodeID,
+      const EdgeID e_begin,
+      const EdgeID e_end,
+      const std::size_t upper_bound,
+      const NodeID *__restrict__ g_edges,
+      Map &ratings
+  ) const {
+    const bool check_full =
+        kDefer && upper_bound >= ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold;
+    const bool edge_weighted = _graph.is_edge_weighted();
+    const EdgeWeight *__restrict__ g_ew = edge_weighted ? _graph.raw_edge_weights().data() : nullptr;
+
+    if (check_full) [[unlikely]] {
+      constexpr std::size_t kThreshold = ParallelRatingMap<NodeID, EdgeWeight>::kFlushThreshold;
+      if constexpr (requires { ratings.fast_accumulator(); }) {
+        auto acc = ratings.fast_accumulator();
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          acc.add(_state_view.cluster(g_edges[e]), edge_weighted ? g_ew[e] : 1);
+          if (acc.size() >= kThreshold) [[unlikely]] {
+            return true;
+          }
+        }
+      } else {
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          ratings[_state_view.cluster(g_edges[e])] += edge_weighted ? g_ew[e] : 1;
+          if (ratings.size() >= kThreshold) [[unlikely]] {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    if constexpr (requires { ratings.fast_accumulator(); }) {
+      auto acc = ratings.fast_accumulator();
+      if (edge_weighted) {
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          acc.add(_state_view.cluster(g_edges[e]), g_ew[e]);
+        }
+      } else {
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          acc.add(_state_view.cluster(g_edges[e]), 1);
+        }
+      }
+    } else {
+      if (edge_weighted) {
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          ratings[_state_view.cluster(g_edges[e])] += g_ew[e];
+        }
+      } else {
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          ratings[_state_view.cluster(g_edges[e])] += 1;
+        }
+      }
+    }
+    return false;
   }
 
   template <typename Selection>

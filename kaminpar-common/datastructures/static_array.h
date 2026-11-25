@@ -160,10 +160,14 @@ public:
 
   StaticArray() {}
 
-  StaticArray(const std::size_t size, value_type *data) : _size(size), _data(data) {}
+  StaticArray(const std::size_t size, value_type *data)
+      : _size(size),
+        _unrestricted_size(size),
+        _data(data) {}
 
   StaticArray(const std::size_t size, heap_profiler::unique_ptr<T> storage)
       : _size(size),
+        _unrestricted_size(size),
         _overcommited_data(std::move(storage)),
         _data(_overcommited_data.get()) {}
 

@@ -43,7 +43,10 @@ private:
 
 enum class NodeProcessingPhase {
   SINGLE,
-  FIRST
+  FIRST,
+  SINGLE_FINAL,
+  FIRST_FINAL,
+  ALL_FIRST_ITER
 };
 
 template <typename Processor, NodeProcessingPhase kPhase> class NodeProcessingKernel {
@@ -61,16 +64,25 @@ public:
           _worker(std::move(worker)) {}
 
     KAMINPAR_INLINE bool operator()(const NodeID u) {
-      if (!_processor.should_visit(u)) {
-        return false;
-      }
-
-      if constexpr (kPhase == NodeProcessingPhase::SINGLE) {
-        _processor.visit(u, _worker);
+      if constexpr (kPhase == NodeProcessingPhase::ALL_FIRST_ITER) {
+        _processor.visit_first_iter(u, _worker);
+        return true;
       } else {
-        _processor.visit_first_phase(u, _worker);
+        if (!_processor.should_visit(u)) {
+          return false;
+        }
+
+        if constexpr (kPhase == NodeProcessingPhase::SINGLE) {
+          _processor.visit(u, _worker);
+        } else if constexpr (kPhase == NodeProcessingPhase::FIRST) {
+          _processor.visit_first_phase(u, _worker);
+        } else if constexpr (kPhase == NodeProcessingPhase::SINGLE_FINAL) {
+          _processor.visit_final(u, _worker);
+        } else {
+          _processor.visit_first_phase_final(u, _worker);
+        }
+        return true;
       }
-      return true;
     }
 
     [[nodiscard]] bool should_stop(const NodeID u) {
@@ -100,6 +112,21 @@ template <typename Processor> [[nodiscard]] auto make_single_phase_kernel(Proces
 
 template <typename Processor> [[nodiscard]] auto make_first_phase_kernel(Processor &processor) {
   return NodeProcessingKernel<Processor, NodeProcessingPhase::FIRST>(processor);
+}
+
+template <typename Processor>
+[[nodiscard]] auto make_single_phase_final_kernel(Processor &processor) {
+  return NodeProcessingKernel<Processor, NodeProcessingPhase::SINGLE_FINAL>(processor);
+}
+
+template <typename Processor>
+[[nodiscard]] auto make_first_phase_final_kernel(Processor &processor) {
+  return NodeProcessingKernel<Processor, NodeProcessingPhase::FIRST_FINAL>(processor);
+}
+
+template <typename Processor>
+[[nodiscard]] auto make_first_iter_kernel(Processor &processor) {
+  return NodeProcessingKernel<Processor, NodeProcessingPhase::ALL_FIRST_ITER>(processor);
 }
 
 } // namespace kaminpar::shm::lp

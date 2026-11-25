@@ -64,8 +64,17 @@ public:
     return _max_cluster_weight;
   }
 
+  [[nodiscard]] KAMINPAR_INLINE bool has_communities() const {
+    return !_communities.empty();
+  }
+
   [[nodiscard]] KAMINPAR_INLINE bool accepts_community(const NodeID from, const NodeID to) const {
     return _communities.empty() || _communities[from] == _communities[to];
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE bool
+  accepts_community_unchecked(const NodeID from, const NodeID to) const {
+    return _communities[from] == _communities[to];
   }
 
   [[nodiscard]] KAMINPAR_INLINE bool
@@ -78,7 +87,7 @@ public:
     return false;
   }
 
-  template <bool kParallelActivate = false, typename Graph>
+  template <bool kParallelActivate = false, bool kActivateNeighbors = true, typename Graph>
   KAMINPAR_INLINE MoveResult commit(
       const Graph &graph,
       const NodeID u,
@@ -91,10 +100,12 @@ public:
     }
 
     move_node(u, to);
-    if constexpr (kParallelActivate) {
-      _active.activate_neighbors_parallel(graph, u, [](const NodeID) { return true; });
-    } else {
-      _active.activate_neighbors(graph, u, [](const NodeID) { return true; });
+    if constexpr (kActivateNeighbors) {
+      if constexpr (kParallelActivate) {
+        _active.activate_neighbors_parallel(graph, u, [](const NodeID) { return true; });
+      } else {
+        _active.activate_neighbors(graph, u, [](const NodeID) { return true; });
+      }
     }
     return {.moved = true, .emptied_cluster = cluster_weight(from) == 0};
   }

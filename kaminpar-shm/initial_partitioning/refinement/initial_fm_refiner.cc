@@ -166,11 +166,14 @@ void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
   if (_marker.capacity() < graph.n()) {
     _marker.resize(graph.n());
   }
+  if (_boundary_marker.capacity() < graph.n()) {
+    _boundary_marker.resize(graph.n());
+  }
   if (_weighted_degrees.size() < graph.n()) {
     _weighted_degrees.resize(graph.n());
   }
 
-  init_weighted_degrees();
+  _weighted_degrees_ready = false;
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
@@ -183,30 +186,33 @@ bool InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
   KASSERT(p_graph.k() == 2u);
   KASSERT(_p_ctx->k == 2u);
 
-  // Avoid edge cut computation if we only want to do one iteration anyways
+  // Avoid redundant edge cut scans by computing initial cut directly inside init_pq()
   if (_r_ctx.num_iterations == 1) {
-    round(p_graph);
+    EdgeWeight initial_edge_cut = 0;
+    const EdgeWeight delta = round(p_graph, &initial_edge_cut, false);
+    _last_edge_cut = initial_edge_cut + delta;
     return false;
   }
 
-  const EdgeWeight initial_edge_cut = metrics::edge_cut_seq(p_graph);
+  EdgeWeight initial_edge_cut = 0;
+  EdgeWeight cur_edge_cut = round(p_graph, &initial_edge_cut, false);
 
   // If there is no improvement possible, abort early
   if (initial_edge_cut == 0) {
+    _last_edge_cut = 0;
     return false;
   }
 
   EdgeWeight prev_edge_cut = initial_edge_cut;
-  EdgeWeight cur_edge_cut = prev_edge_cut;
-
-  cur_edge_cut += round(p_graph); // always do at least one round
+  cur_edge_cut += initial_edge_cut;
   for (std::size_t it = 1;
        0 < cur_edge_cut && it < _r_ctx.num_iterations && !abort(prev_edge_cut, cur_edge_cut);
        ++it) {
     prev_edge_cut = cur_edge_cut;
-    cur_edge_cut += round(p_graph);
+    cur_edge_cut += round(p_graph, nullptr, true);
   }
 
+  _last_edge_cut = cur_edge_cut;
   return cur_edge_cut < initial_edge_cut;
 }
 
@@ -219,7 +225,7 @@ bool InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
 EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::round(
-    PartitionedCSRGraph &p_graph
+    PartitionedCSRGraph &p_graph, EdgeWeight *out_initial_cut, const bool incremental
 ) {
   DBG << "Initial refiner initialized with n=" << p_graph.graph().n()
       << ", m=" << p_graph.graph().m() << ", k=" << p_graph.k();
@@ -235,8 +241,17 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 #endif
 
   _stopping_policy.reset();
+  if (_r_ctx.num_iterations > 1) {
+    _accepted_moves.clear();
+  }
 
-  init_pq(p_graph);
+  const EdgeWeight computed_initial_cut = init_pq(p_graph, incremental);
+  if (out_initial_cut != nullptr) {
+    *out_initial_cut = computed_initial_cut;
+  }
+  if (computed_initial_cut == 0) {
+    return 0;
+  }
 
   std::size_t active = 0; // block from which we select a node for movement
 
@@ -318,6 +333,9 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
       _stopping_policy.reset();
       accepted_delta = current_delta;
       accepted_overload = current_overload;
+      if (_r_ctx.num_iterations > 1) {
+        _accepted_moves.insert(_accepted_moves.end(), _moves.begin(), _moves.end());
+      }
       _moves.clear();
     }
   }
@@ -326,6 +344,26 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
   for (const NodeID u : _moves) {
     p_graph.set_block(u, 1 - p_graph.block(u));
   };
+
+  if (_r_ctx.num_iterations > 1 && !_accepted_moves.empty()) {
+    const EdgeID *g_nodes = _graph->raw_nodes().data();
+    const NodeID *g_edges = _graph->raw_edges().data();
+    for (const NodeID u : _accepted_moves) {
+      if (!_boundary_marker.get(u)) {
+        _boundary_marker.set(u);
+        _boundary_nodes.push_back(u);
+      }
+      const EdgeID e_begin = g_nodes[u];
+      const EdgeID e_end = g_nodes[u + 1];
+      for (EdgeID e = e_begin; e < e_end; ++e) {
+        const NodeID v = g_edges[e];
+        if (!_boundary_marker.get(v)) {
+          _boundary_marker.set(v);
+          _boundary_nodes.push_back(v);
+        }
+      }
+    }
+  }
 
   // reset datastructures for next run
   for (const std::size_t i : {0, 1}) {
@@ -343,51 +381,174 @@ EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingP
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
-void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::init_pq(
-    const PartitionedCSRGraph &p_graph
+EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::init_pq(
+    const PartitionedCSRGraph &p_graph, const bool incremental
 ) {
   KASSERT(_queues[0].empty());
   KASSERT(_queues[1].empty());
 
-  const NodeID num_chunks = _graph->n() / kChunkSize + 1;
+  const NodeID n = _graph->n();
+  std::int64_t total_external_weight = 0;
+  const auto &g = *_graph;
+  const EdgeID *__restrict__ g_nodes = g.raw_nodes().data();
+  const NodeID *__restrict__ g_edges = g.raw_edges().data();
+  const BlockID *__restrict__ part = p_graph.raw_partition().data();
+  EdgeWeight *__restrict__ wd = _weighted_degrees.data();
+  const bool edge_weighted = g.is_edge_weighted();
+  const EdgeWeight *__restrict__ g_ew = edge_weighted ? g.raw_edge_weights().data() : nullptr;
+  const bool track_boundary = (_r_ctx.num_iterations > 1);
+  const bool forward = _rand.random_bool();
 
-  _chunks.clear();
-  if (_chunks.size() < num_chunks) {
-    _chunks.resize(num_chunks);
-  }
+  if (incremental && _boundary_nodes.size() * 2 < n) {
+    const auto process_boundary_node = [&](const NodeID u) {
+      const BlockID u_block = part[u];
+      EdgeWeight ext = 0;
+      const EdgeID e_begin = g_nodes[u];
+      const EdgeID e_end = g_nodes[u + 1];
+      if (edge_weighted) {
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          ext += (part[g_edges[e]] != u_block) ? g_ew[e] : 0;
+        }
+      } else {
+        for (EdgeID e = e_begin; e < e_end; ++e) {
+          ext += (part[g_edges[e]] != u_block);
+        }
+      }
+      if (ext != 0) {
+        _queues[u_block].push_unsorted(u, wd[u] - 2 * ext);
+        total_external_weight += ext;
+      }
+    };
 
-  std::iota(_chunks.begin(), _chunks.begin() + num_chunks, 0);
-  std::transform(
-      _chunks.begin(),
-      _chunks.begin() + num_chunks,
-      _chunks.begin(),
-      [](const NodeID i) { return i * kChunkSize; }
-  );
-  _rand.shuffle(_chunks.begin(), _chunks.begin() + num_chunks);
-
-  for (NodeID i = 0; i < num_chunks; ++i) {
-    const NodeID chunk = _chunks[i];
-    const auto &permutation = _permutations.get(_rand);
-    for (const NodeID i : permutation) {
-      const NodeID u = chunk + i;
-      if (u < _graph->n()) {
-        insert_node(p_graph, u);
+    const NodeID *__restrict__ bn_data = _boundary_nodes.data();
+    const std::size_t bn_size = _boundary_nodes.size();
+    if (forward) {
+      for (std::size_t i = 0; i < bn_size; ++i) {
+        process_boundary_node(bn_data[i]);
+      }
+    } else {
+      for (std::size_t i = bn_size; i-- > 0;) {
+        process_boundary_node(bn_data[i]);
       }
     }
+  } else {
+    if (track_boundary) {
+      _boundary_marker.reset();
+      _boundary_nodes.clear();
+    }
+
+    const bool compute_wd = !_weighted_degrees_ready;
+
+    auto scan_full = [&](auto weighted_tag, auto compute_wd_tag) {
+      constexpr bool kWeighted = decltype(weighted_tag)::value;
+      constexpr bool kComputeWd = decltype(compute_wd_tag)::value;
+      const auto process_node = [&](const NodeID u) {
+        const BlockID u_block = part[u];
+        const EdgeID e_begin = g_nodes[u];
+        const EdgeID e_end = g_nodes[u + 1];
+        EdgeWeight ext = 0;
+        EdgeWeight u_wd;
+
+        if constexpr (kWeighted) {
+          if constexpr (kComputeWd) {
+            EdgeWeight total_w = 0;
+            for (EdgeID e = e_begin; e < e_end; ++e) {
+              const EdgeWeight w = g_ew[e];
+              total_w += w;
+              ext += (part[g_edges[e]] != u_block) ? w : 0;
+            }
+            wd[u] = total_w;
+            u_wd = total_w;
+          } else {
+            for (EdgeID e = e_begin; e < e_end; ++e) {
+              ext += (part[g_edges[e]] != u_block) ? g_ew[e] : 0;
+            }
+            u_wd = wd[u];
+          }
+        } else {
+          if constexpr (kComputeWd) {
+            u_wd = static_cast<EdgeWeight>(e_end - e_begin);
+            wd[u] = u_wd;
+          } else {
+            u_wd = wd[u];
+          }
+          for (EdgeID e = e_begin; e < e_end; ++e) {
+            ext += (part[g_edges[e]] != u_block);
+          }
+        }
+
+        if (ext != 0) {
+          _queues[u_block].push_unsorted(u, u_wd - 2 * ext);
+          total_external_weight += ext;
+          if (track_boundary) {
+            _boundary_marker.set(u);
+            _boundary_nodes.push_back(u);
+          }
+        }
+      };
+
+      if (forward) {
+        for (NodeID u = 0; u < n; ++u) {
+          process_node(u);
+        }
+      } else {
+        for (NodeID u = n; u-- > 0;) {
+          process_node(u);
+        }
+      }
+    };
+
+    if (edge_weighted) {
+      if (compute_wd) {
+        scan_full(std::true_type{}, std::true_type{});
+      } else {
+        scan_full(std::true_type{}, std::false_type{});
+      }
+    } else {
+      if (compute_wd) {
+        scan_full(std::false_type{}, std::true_type{});
+      } else {
+        scan_full(std::false_type{}, std::false_type{});
+      }
+    }
+    _weighted_degrees_ready = true;
   }
 
+  _queues[0].build_heap();
+  _queues[1].build_heap();
+
   KASSERT(validate_pqs(p_graph), "inconsistent PQ state after init", assert::heavy);
+  return static_cast<EdgeWeight>(total_external_weight / 2);
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>
-void InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::insert_node(
+EdgeWeight InitialFMRefiner<QueueSelectionPolicy, CutAcceptancePolicy, StoppingPolicy>::insert_node(
     const PartitionedCSRGraph &p_graph, const NodeID u
 ) {
-  const EdgeWeight gain = compute_gain_from_scratch(p_graph, u);
   const BlockID u_block = p_graph.block(u);
-  if (_weighted_degrees[u] != gain) {
+  EdgeWeight weighted_external_degree = 0;
+  const auto &g = *_graph;
+  const EdgeID e_begin = g.raw_nodes()[u];
+  const EdgeID e_end = g.raw_nodes()[u + 1];
+  const NodeID *__restrict__ edges = g.raw_edges().data();
+  const BlockID *__restrict__ part = p_graph.raw_partition().data();
+
+  if (g.is_edge_weighted()) {
+    const EdgeWeight *__restrict__ ew = g.raw_edge_weights().data();
+    for (EdgeID e = e_begin; e < e_end; ++e) {
+      weighted_external_degree += (part[edges[e]] != u_block) ? ew[e] : 0;
+    }
+  } else {
+    for (EdgeID e = e_begin; e < e_end; ++e) {
+      weighted_external_degree += (part[edges[e]] != u_block);
+    }
+  }
+
+  if (weighted_external_degree != 0) {
+    const EdgeWeight gain = _weighted_degrees[u] - 2 * weighted_external_degree;
     _queues[u_block].push(u, gain);
   }
+  return weighted_external_degree;
 }
 
 template <typename QueueSelectionPolicy, typename CutAcceptancePolicy, typename StoppingPolicy>

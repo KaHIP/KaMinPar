@@ -30,6 +30,100 @@ public:
   explicit ClusteringSelector(const ClusteringStateView state) : _state(state) {}
 
   template <typename Map, typename TieContainer>
+  [[nodiscard]] NodeID select_cluster(
+      const NodeID from,
+      const NodeWeight u_weight,
+      Map &ratings,
+      Random &random,
+      TieContainer &ties
+  ) const {
+    NodeID best = from;
+    EdgeWeight best_rating = 0;
+    NodeID first_tie = from;
+    std::size_t tie_count = 0;
+    bool ties_used = false;
+    const NodeWeight max_weight = _state.max_cluster_weight(from);
+    const bool has_communities = _state.has_communities();
+
+    for (const auto [cluster, rating] : ratings.entries()) {
+      if (rating > best_rating) {
+        if ((cluster == from || _state.cluster_weight(cluster) + u_weight <= max_weight) &&
+            (!has_communities || _state.accepts_community_unchecked(from, cluster))) {
+          best = cluster;
+          best_rating = rating;
+          first_tie = cluster;
+          tie_count = 1;
+        }
+      } else if (rating == best_rating) {
+        if ((cluster == from || _state.cluster_weight(cluster) + u_weight <= max_weight) &&
+            (!has_communities || _state.accepts_community_unchecked(from, cluster))) {
+          if (tie_count == 0) {
+            first_tie = cluster;
+            tie_count = 1;
+          } else {
+            if (tie_count == 1) {
+              ties.clear();
+              ties.push_back(first_tie);
+              ties_used = true;
+            }
+            ties.push_back(cluster);
+            ++tie_count;
+          }
+        }
+      }
+    }
+
+    if (tie_count > 1) [[unlikely]] {
+      best = ties[random.random_index(0, tie_count)];
+    }
+    if (ties_used) [[unlikely]] {
+      ties.clear();
+    }
+    return best;
+  }
+
+  template <typename Map, typename TieContainer>
+  [[nodiscard]] NodeID select_favored_cluster(
+      const NodeID from, Map &ratings, Random &random, TieContainer &favored_ties
+  ) const {
+    NodeID favored = from;
+    EdgeWeight favored_rating = 0;
+    NodeID first_tie = from;
+    std::size_t tie_count = 0;
+    bool ties_used = false;
+
+    for (const auto [cluster, rating] : ratings.entries()) {
+      if (rating > favored_rating) {
+        favored_rating = rating;
+        favored = cluster;
+        first_tie = cluster;
+        tie_count = 1;
+      } else if (rating == favored_rating) {
+        if (tie_count == 0) {
+          first_tie = cluster;
+          tie_count = 1;
+        } else {
+          if (tie_count == 1) {
+            favored_ties.clear();
+            favored_ties.push_back(first_tie);
+            ties_used = true;
+          }
+          favored_ties.push_back(cluster);
+          ++tie_count;
+        }
+      }
+    }
+
+    if (tie_count > 1) [[unlikely]] {
+      favored = favored_ties[random.random_index(0, tie_count)];
+    }
+    if (ties_used) [[unlikely]] {
+      favored_ties.clear();
+    }
+    return favored;
+  }
+
+  template <typename Map, typename TieContainer>
   [[nodiscard]] Selection select(
       const NodeID from,
       const NodeWeight u_weight,

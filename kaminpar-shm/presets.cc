@@ -335,7 +335,7 @@ Context create_default_context() {
                   {
                       // Context -> Refinement -> Label Propagation
                       .num_iterations = 5,
-                      .iteration_order = LabelPropagationIterationOrder::CHUNK_SHUFFLED,
+                      .iteration_order = LabelPropagationIterationOrder::IN_ORDER,
                       .unconstrained_min_improvement_factor = 0.001,
                   },
               .kway_fm =

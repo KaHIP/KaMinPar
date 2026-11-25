@@ -7,11 +7,13 @@
 #pragma once
 
 #include <algorithm>
+#include <type_traits>
 
 #include "kaminpar-shm/algorithms/label_propagation/balanced_selector.h"
 #include "kaminpar-shm/algorithms/label_propagation/neighborhood_ratings.h"
 #include "kaminpar-shm/algorithms/label_propagation/node_processing.h"
 #include "kaminpar-shm/algorithms/label_propagation/rating_map_pool.h"
+#include "kaminpar-shm/datastructures/csr_graph.h"
 
 #include "kaminpar-common/random.h"
 
@@ -65,6 +67,27 @@ public:
   }
 
   void visit(const NodeID u, LocalWorker &local) {
+    visit_impl<false>(u, local);
+  }
+
+  void visit_first_iter(const NodeID u, LocalWorker &local) {
+    visit_impl<true>(u, local);
+  }
+
+  void finish_work_unit(LocalWorker &) {}
+
+private:
+  template <bool kFirstIteration>
+  void visit_impl(const NodeID u, LocalWorker &local) {
+    if (!_state.has_communities()) [[likely]] {
+      if constexpr (std::is_same_v<std::decay_t<Graph>, CSRGraph>) {
+        visit_csr_unrestricted<kFirstIteration>(u, local);
+      } else {
+        visit_unrestricted<kFirstIteration>(u, local);
+      }
+      return;
+    }
+
     const NodeWeight u_weight = _graph.node_weight(u);
     const BlockID from = _state.cluster(u);
     const std::size_t upper_bound = std::min<BlockID>(_graph.degree(u), _num_blocks);
@@ -76,20 +99,163 @@ public:
           [&](const NodeID v) { return _state.cluster(v); },
           [&](const NodeID v) { return _state.accepts_neighbor(u, v); }
       );
-      _state.deactivate(u);
+      if constexpr (!kFirstIteration) {
+        _state.deactivate(u);
+      }
       const BlockID selected = _selector.select(from, u_weight, ratings, local.random, local.ties);
       ratings.clear();
       return selected;
     });
 
-    if (_state.commit(_graph, u, from, to, u_weight)) {
+    if (to != from && _state.commit(_graph, u, from, to, u_weight)) {
       ++local.stats.moved;
     }
   }
 
-  void finish_work_unit(LocalWorker &) {}
+  template <bool kFirstIteration>
+  void visit_csr_unrestricted(const NodeID u, LocalWorker &local) {
+    const EdgeID *g_nodes = _graph.raw_nodes().data();
+    const NodeID *g_edges = _graph.raw_edges().data();
+    const BlockID *part = _state.raw_partition();
+    const EdgeID e_begin = g_nodes[u];
+    const EdgeID e_end = g_nodes[u + 1];
+    const BlockID from = __atomic_load_n(&part[u], __ATOMIC_RELAXED);
 
-private:
+    const bool edge_weighted = _graph.is_edge_weighted();
+    const EdgeWeight *g_ew = edge_weighted ? _graph.raw_edge_weights().data() : nullptr;
+    const EdgeID degree = e_end - e_begin;
+    // On an unweighted graph, a strict majority outweighs all remaining edges.
+    const EdgeID e_prefix_end = edge_weighted ? e_end : e_begin + std::min(degree, degree / 2 + 1);
+
+    // Loop 1: fast prefix scan while neighbors remain in block `from`.
+    // Reaching the scan limit avoids touching the rating map, selector, or block weights.
+    EdgeID e = e_begin;
+    EdgeWeight internal_rating = 0;
+    if (edge_weighted) {
+      while (e < e_end) {
+        const BlockID b = __atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED);
+        if (b != from) {
+          break;
+        }
+        internal_rating += g_ew[e];
+        ++e;
+      }
+    } else {
+      while (e < e_prefix_end) {
+        const BlockID b = __atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED);
+        if (b != from) {
+          break;
+        }
+        ++e;
+      }
+      internal_rating = static_cast<EdgeWeight>(e - e_begin);
+    }
+
+    if (e == e_prefix_end) {
+      if constexpr (!kFirstIteration) {
+        _state.deactivate(u);
+      }
+      return;
+    }
+
+    // Loop 2: boundary node — accumulate remaining neighbors without interior-check branching.
+    const NodeWeight u_weight = _graph.node_weight(u);
+    const std::size_t upper_bound = std::min<BlockID>(static_cast<NodeID>(degree), _num_blocks);
+    const BlockID to = local.ratings.execute(upper_bound, [&](auto &ratings) {
+      if constexpr (requires { ratings.fast_accumulator(); }) {
+        auto acc = ratings.fast_accumulator();
+        if (internal_rating > 0) {
+          acc.add(from, internal_rating);
+        }
+        if (edge_weighted) {
+          for (; e < e_end; ++e) {
+            acc.add(__atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED), g_ew[e]);
+          }
+        } else {
+          for (; e < e_end; ++e) {
+            acc.add(__atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED), 1);
+          }
+        }
+      } else {
+        if (internal_rating > 0) {
+          ratings[from] = internal_rating;
+        }
+        if (edge_weighted) {
+          for (; e < e_end; ++e) {
+            ratings[__atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED)] += g_ew[e];
+          }
+        } else {
+          for (; e < e_end; ++e) {
+            ratings[__atomic_load_n(&part[g_edges[e]], __ATOMIC_RELAXED)] += 1;
+          }
+        }
+      }
+
+      if constexpr (!kFirstIteration) {
+        _state.deactivate(u);
+      }
+      const BlockID selected = _selector.select(from, u_weight, ratings, local.random, local.ties);
+      ratings.clear();
+      return selected;
+    });
+
+    if (to != from && _state.commit(_graph, u, from, to, u_weight)) {
+      ++local.stats.moved;
+    }
+  }
+
+  template <bool kFirstIteration>
+  void visit_unrestricted(const NodeID u, LocalWorker &local) {
+    const BlockID from = _state.cluster(u);
+    const std::size_t upper_bound = std::min<BlockID>(_graph.degree(u), _num_blocks);
+    const BlockID to = local.ratings.execute(upper_bound, [&](auto &ratings) {
+      EdgeWeight internal_rating = 0;
+      bool has_internal_neighbor = false;
+      bool boundary = false;
+      const auto collect = [&](auto add_rating) {
+        // Decode the neighborhood once and start updating ratings at the first external edge.
+        _graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight weight) {
+          const BlockID block = _state.cluster(v);
+          if (!boundary) {
+            if (block == from) {
+              has_internal_neighbor = true;
+              internal_rating += weight;
+              return;
+            }
+
+            boundary = true;
+            if (has_internal_neighbor) {
+              add_rating(from, internal_rating);
+            }
+          }
+          add_rating(block, weight);
+        });
+      };
+
+      if constexpr (requires { ratings.fast_accumulator(); }) {
+        auto accumulator = ratings.fast_accumulator();
+        collect([&](const BlockID block, const EdgeWeight weight) { accumulator.add(block, weight); });
+      } else {
+        collect([&](const BlockID block, const EdgeWeight weight) { ratings[block] += weight; });
+      }
+
+      if constexpr (!kFirstIteration) {
+        _state.deactivate(u);
+      }
+      if (!boundary) {
+        return from;
+      }
+      const NodeWeight u_weight = _graph.node_weight(u);
+      const BlockID selected = _selector.select(from, u_weight, ratings, local.random, local.ties);
+      ratings.clear();
+      return selected;
+    });
+
+    if (to != from && _state.commit(_graph, u, from, to, _graph.node_weight(u))) {
+      ++local.stats.moved;
+    }
+  }
+
   const Graph &_graph;
   BalancedState &_state;
   RatingMaps &_rating_maps;

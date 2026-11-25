@@ -6,6 +6,8 @@
 #include "kaminpar-shm/coarsening/contraction/unbuffered_cluster_contraction.h"
 
 #include <array>
+#include <atomic>
+#include <bit>
 #include <cstring>
 #include <optional>
 #include <utility>
@@ -17,13 +19,12 @@
 #include "kaminpar-shm/coarsening/contraction/cluster_contraction_preprocessing.h"
 #include "kaminpar-shm/kaminpar.h"
 
-#include "kaminpar-common/datastructures/compact_static_array.h"
 #include "kaminpar-common/datastructures/concurrent_fast_reset_array.h"
 #include "kaminpar-common/datastructures/dynamic_map.h"
-#include "kaminpar-common/datastructures/fixed_size_sparse_map.h"
 #include "kaminpar-common/datastructures/rating_map.h"
 #include "kaminpar-common/datastructures/static_array.h"
 #include "kaminpar-common/heap_profiler.h"
+#include "kaminpar-common/inline.h"
 #include "kaminpar-common/timer.h"
 
 namespace kaminpar::shm::contraction {
@@ -31,6 +32,108 @@ namespace kaminpar::shm::contraction {
 namespace {
 
 SET_DEBUG(false);
+
+template <std::size_t kMaxCapacity = 65536> class FlatContractionMap {
+  static_assert((kMaxCapacity & (kMaxCapacity - 1)) == 0);
+  static_assert(kMaxCapacity <= 65536);
+
+  struct Slot {
+    std::uint32_t timestamp;
+    NodeID key;
+    EdgeWeight value;
+  };
+
+public:
+  static constexpr std::size_t MAP_SIZE = kMaxCapacity;
+
+  FlatContractionMap()
+      : _slots(std::make_unique<Slot[]>(kMaxCapacity)),
+        _used_slots(std::make_unique<std::uint16_t[]>(kMaxCapacity)) {
+    set_capacity(kMaxCapacity);
+  }
+
+  FlatContractionMap(const FlatContractionMap &) = delete;
+  FlatContractionMap &operator=(const FlatContractionMap &) = delete;
+  FlatContractionMap(FlatContractionMap &&) noexcept = default;
+  FlatContractionMap &operator=(FlatContractionMap &&) noexcept = default;
+
+  KAMINPAR_INLINE void set_capacity(const std::size_t cap) {
+    _capacity = cap;
+    _mask = cap - 1;
+    _shift = 64 - std::countr_zero(cap);
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE std::size_t capacity() const {
+    return _capacity;
+  }
+
+  [[nodiscard]] KAMINPAR_INLINE std::size_t size() const {
+    return _size;
+  }
+
+  KAMINPAR_INLINE void add(const NodeID key, const EdgeWeight weight) {
+    Slot *__restrict__ slots = _slots.get();
+    const std::uint32_t ts = _timestamp;
+    const std::size_t mask = _mask;
+    std::size_t slot =
+        (static_cast<std::uint64_t>(key) * 0x9e3779b97f4a7c15ULL) >> _shift;
+    while (true) {
+      Slot &s = slots[slot];
+      if (s.timestamp != ts) {
+        s.timestamp = ts;
+        s.key = key;
+        s.value = weight;
+        _used_slots[_size++] = static_cast<std::uint16_t>(slot);
+        return;
+      }
+      if (s.key == key) {
+        s.value += weight;
+        return;
+      }
+      slot = (slot + 1) & mask;
+    }
+  }
+
+  template <typename Fn> KAMINPAR_INLINE void for_each_entry(Fn &&fn) const {
+    const Slot *__restrict__ slots = _slots.get();
+    const std::uint16_t *__restrict__ used = _used_slots.get();
+    const std::size_t sz = _size;
+    for (std::size_t i = 0; i < sz; ++i) {
+      const Slot &s = slots[used[i]];
+      fn(s.key, s.value);
+    }
+  }
+
+  KAMINPAR_INLINE void clear() {
+    _size = 0;
+    if (++_timestamp == 0) [[unlikely]] {
+      std::memset(_slots.get(), 0, kMaxCapacity * sizeof(Slot));
+      _timestamp = 1;
+    }
+  }
+
+private:
+  std::unique_ptr<Slot[]> _slots;
+  std::unique_ptr<std::uint16_t[]> _used_slots;
+  std::size_t _capacity = kMaxCapacity;
+  std::size_t _mask = kMaxCapacity - 1;
+  int _shift = 64 - std::countr_zero(kMaxCapacity);
+  std::size_t _size = 0;
+  std::uint32_t _timestamp = 1;
+};
+
+template <typename Map, typename Visitor>
+KAMINPAR_INLINE void for_each_collected_edge(Map &map, Visitor &&visit) {
+  for (const auto [neighbor, weight] : map.entries()) {
+    visit(neighbor, weight);
+  }
+}
+
+template <std::size_t kCapacity, typename Visitor>
+KAMINPAR_INLINE void
+for_each_collected_edge(FlatContractionMap<kCapacity> &map, Visitor &&visit) {
+  map.for_each_entry(std::forward<Visitor>(visit));
+}
 
 class NeighborhoodsBuffer {
   static constexpr NodeID kMaxNumNodes = 4096;
@@ -46,7 +149,7 @@ public:
       NodeID *edges,
       NodeWeight *node_weights,
       EdgeWeight *edge_weights,
-      CompactStaticArray<NodeID> &remapping
+      NodeID *remapping
   )
       : _nodes(nodes),
         _edges(edges),
@@ -95,7 +198,7 @@ public:
     std::memcpy(_node_weights + c_u, _node_weight_buffer.data(), buffered_node_weights_size);
 
     for (NodeID i = 0; i < _num_buffered_nodes; ++i) {
-      _remapping.write(_remapping_buffer[i], c_u + i);
+      _remapping[_remapping_buffer[i]] = c_u + i;
       _nodes[c_u + i] = _node_buffer[i] + e;
     }
 
@@ -109,7 +212,7 @@ private:
   NodeID *_edges;
   NodeWeight *_node_weights;
   EdgeWeight *_edge_weights;
-  CompactStaticArray<NodeID> &_remapping;
+  NodeID *_remapping;
 
   NodeID _num_buffered_nodes;
   EdgeID _num_buffered_edges;
@@ -167,57 +270,44 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
   START_HEAP_PROFILER("Construct coarse graph");
   START_TIMER("Construct coarse graph");
 
-  // When writing the neighborhood of a coarse node into the coarse node array, we additionally
-  // store inside a vector the coarse node ID it is remapped to. This allows us to directly write
-  // the coarse edges into the coarse edge array.
-  CompactStaticArray<NodeID> remapping(math::byte_width(c_n), c_n);
+  StaticArray<NodeID> remapping(c_n, static_array::noinit);
+  NodeID *__restrict__ remapping_ptr = remapping.data();
   const auto write_neighbourhood = [&](const NodeID c_u,
                                        const NodeWeight c_u_weight,
                                        const NodeID new_c_u,
                                        EdgeID edge,
                                        auto &map) {
-    remapping.write(c_u, new_c_u);
+    remapping_ptr[c_u] = new_c_u;
 
     c_nodes[new_c_u] = edge;
     c_node_weights[new_c_u] = c_u_weight;
 
-    for (const auto [c_v, weight] : map.entries()) {
+    for_each_collected_edge(map, [&](const NodeID c_v, const EdgeWeight weight) {
       c_edges[edge] = c_v;
       c_edge_weights[edge] = weight;
       edge += 1;
-    }
+    });
   };
 
-  // We keep track of the new coarse node ID for the next coarse node to be remapped and its edge
-  // offset inside a 128-bit integer. We atomically increment it with double-width compare-and-swap
-  // instructions.
-  union alignas(16) NextCoarseNodeInfo {
-    __uint128_t val;
-    struct {
-      std::uint64_t c_u;
-      std::uint64_t edge;
-    } info;
+  struct alignas(64) NextCoarseNodeInfo {
+    std::atomic<bool> lock{false};
+    std::uint64_t c_u = 0;
+    std::uint64_t edge = 0;
   };
 
-  NextCoarseNodeInfo next_coarse_node_info = {.info = {.c_u = 0, .edge = 0}};
+  NextCoarseNodeInfo next_coarse_node_info;
   const auto atomic_fetch_next_coarse_node_info = [&](const std::uint64_t nodes,
                                                       const std::uint64_t degree) {
-    NextCoarseNodeInfo expected = {.val = 0};
-
-    while (true) {
-      const NextCoarseNodeInfo desired = {
-          .info = {.c_u = expected.info.c_u + nodes, .edge = expected.info.edge + degree}
-      };
-      // A failed CAS supplies the next snapshot without racing an ordinary 128-bit read.
-      const __uint128_t observed =
-          __sync_val_compare_and_swap(&next_coarse_node_info.val, expected.val, desired.val);
-      if (observed == expected.val) {
-        break;
+    while (next_coarse_node_info.lock.exchange(true, std::memory_order_acquire)) {
+      while (next_coarse_node_info.lock.load(std::memory_order_relaxed)) {
       }
-      expected.val = observed;
     }
-
-    return std::make_pair(expected.info.c_u, expected.info.edge);
+    const std::uint64_t cur_c_u = next_coarse_node_info.c_u;
+    const std::uint64_t cur_edge = next_coarse_node_info.edge;
+    next_coarse_node_info.c_u = cur_c_u + nodes;
+    next_coarse_node_info.edge = cur_edge + degree;
+    next_coarse_node_info.lock.store(false, std::memory_order_release);
+    return std::make_pair(cur_c_u, cur_edge);
   };
 
   // After aggregating the neighborhood of a coarse node, we want to write the edges into the coarse
@@ -252,10 +342,8 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       return;
     }
 
-    neighborhood_buffer.add(c_u, degree, c_u_weight, [&](auto &&l) {
-      for (const auto [c_v, weight] : edge_collector.entries()) {
-        l(c_v, weight);
-      }
+    neighborhood_buffer.add(c_u, degree, c_u_weight, [&](auto &&visit) {
+      for_each_collected_edge(edge_collector, visit);
     });
   };
 
@@ -299,7 +387,7 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
 
   tbb::enumerable_thread_specific<NeighborhoodsBuffer> neighborhoods_buffer_ets{[&] {
     return NeighborhoodsBuffer(
-        c_nodes.data(), c_edges, c_node_weights.data(), c_edge_weights, remapping
+        c_nodes.data(), c_edges, c_node_weights.data(), c_edge_weights, remapping_ptr
     );
   }};
 
@@ -363,29 +451,55 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
       }
     });
   } else if (con_ctx.unbuffered_implementation == ContractionImplementation::TWO_PHASE) {
-    using EdgeCollector = FixedSizeSparseMap<NodeID, EdgeWeight, 65536>;
+    constexpr std::size_t kMaxHashCapacity = 65536;
+    constexpr std::size_t kMinHashCapacity = 64;
+    constexpr NodeID kDegreeThreshold = kMaxHashCapacity / 3;
+    using EdgeCollector = FlatContractionMap<kMaxHashCapacity>;
     tbb::enumerable_thread_specific<EdgeCollector> edge_collector_ets;
 
-    // To aggregate the edges of a coarse node for the two-phase implementation, we iterate over the
-    // fine edges of the nodes that are contracted to the coarse node and bump the coarse node to
-    // the second phase if its degree crosses a threshold.
-    constexpr NodeID kDegreeThreshold = EdgeCollector::MAP_SIZE / 3;
+    const NodeID *__restrict__ mapping_ptr = mapping.data();
+    const NodeID *__restrict__ buckets_ptr = buckets.data();
+    const NodeID *__restrict__ buckets_index_ptr = buckets_index.data();
+
     const auto aggregate_edges = [&](const NodeID c_u,
                                      auto &local_edge_collector) -> std::optional<NodeWeight> {
-      const NodeID bucket_start = buckets_index[c_u];
-      const NodeID bucket_end = buckets_index[c_u + 1];
+      const NodeID bucket_start = buckets_index_ptr[c_u];
+      const NodeID bucket_end = buckets_index_ptr[c_u + 1];
+      const NodeID cluster_size = bucket_end - bucket_start;
 
+      std::size_t upper_bound_degree = kDegreeThreshold;
       NodeWeight c_u_weight = 0;
+      if (cluster_size <= 64) [[likely]] {
+        upper_bound_degree = 0;
+        for (NodeID i = bucket_start; i < bucket_end; ++i) {
+          const NodeID u = buckets_ptr[i];
+          upper_bound_degree += graph.degree(u);
+          c_u_weight += graph.node_weight(u);
+        }
+        if (upper_bound_degree == 0) [[unlikely]] {
+          return c_u_weight;
+        }
+        const std::size_t target_cap = std::clamp<std::size_t>(
+            std::bit_ceil(std::max<std::size_t>(upper_bound_degree * 4, 1)),
+            kMinHashCapacity,
+            kMaxHashCapacity
+        );
+        local_edge_collector.set_capacity(target_cap);
+      } else {
+        local_edge_collector.set_capacity(kMaxHashCapacity);
+      }
+
+      const bool need_weight = (cluster_size > 64);
       bool second_phase_node = false;
       for (NodeID i = bucket_start; i < bucket_end; ++i) {
-        const NodeID u = buckets[i];
-        c_u_weight += graph.node_weight(u);
-
+        const NodeID u = buckets_ptr[i];
+        if (need_weight) {
+          c_u_weight += graph.node_weight(u);
+        }
         graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-          const NodeID c_v = mapping[v];
+          const NodeID c_v = mapping_ptr[v];
           if (c_u != c_v) {
-            local_edge_collector[c_v] += w;
-
+            local_edge_collector.add(c_v, w);
             if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
               second_phase_node = true;
               return true;
@@ -393,12 +507,10 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
           }
           return false;
         });
-
         if (second_phase_node) [[unlikely]] {
           return std::nullopt;
         }
       }
-
       return c_u_weight;
     };
 
@@ -427,116 +539,116 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     STOP_TIMER();
 
     START_TIMER("Second phase");
-    ConcurrentFastResetArray<EdgeWeight, NodeID> edge_collector(c_n);
-    tbb::enumerable_thread_specific<NodeWeight> coarse_node_weight_ets(0);
+    if (!second_phase_nodes.empty()) {
+      ConcurrentFastResetArray<EdgeWeight, NodeID> edge_collector(c_n);
+      tbb::enumerable_thread_specific<NodeWeight> coarse_node_weight_ets(0);
 
-    auto &[cur_c_u, cur_edge] = next_coarse_node_info.info;
-    for (const NodeID c_u : second_phase_nodes) {
-      const NodeID bucket_start = buckets_index[c_u];
-      const NodeID bucket_end = buckets_index[c_u + 1];
+      auto &cur_c_u = next_coarse_node_info.c_u;
+      auto &cur_edge = next_coarse_node_info.edge;
+      for (const NodeID c_u : second_phase_nodes) {
+        const NodeID bucket_start = buckets_index[c_u];
+        const NodeID bucket_end = buckets_index[c_u + 1];
 
-      // To avoid possible contention caused by atomic fetch-and-add operations when there are
-      // clusters in the neighborhood of a coarse node that are often encountered, we first store
-      // the edge weights to adjacent coarse nodes in the thread-local hash tables of the first
-      // phase and flush them when they are full.
-      const auto flush_local_rating_map = [&](auto &local_used_entries,
-                                              auto &local_edge_collector) {
-        for (const auto [c_v, w] : local_edge_collector.entries()) {
-          const EdgeWeight prev_weight =
-              __atomic_fetch_add(&edge_collector[c_v], w, __ATOMIC_RELAXED);
+        const auto flush_local_rating_map = [&](auto &local_used_entries,
+                                                auto &local_edge_collector) {
+          local_edge_collector.for_each_entry([&](const NodeID c_v, const EdgeWeight w) {
+            const EdgeWeight prev_weight =
+                __atomic_fetch_add(&edge_collector[c_v], w, __ATOMIC_RELAXED);
 
-          if (prev_weight == 0) {
-            local_used_entries.push_back(c_v);
-          }
-        }
+            if (prev_weight == 0) {
+              local_used_entries.push_back(c_v);
+            }
+          });
 
-        local_edge_collector.clear();
-      };
+          local_edge_collector.clear();
+        };
 
-      // Since there can be many fine nodes with a low degree inside a cluster, parallel iteration
-      // only over the neighborhood of fine nodes can lead to inferior running times. For this
-      // reason, we iterate in parallel over the fine nodes in a cluster. Furthermore, we iterate in
-      // parallel (with nested parallelism) over the neighborhood of fine nodes, if they have a high
-      // degree, to reduce load imbalance.
-      constexpr NodeID kParallelIterationGrainsize = 2000;
-      tbb::parallel_for(tbb::blocked_range<NodeID>(bucket_start, bucket_end), [&](const auto &r) {
-        auto &local_coarse_node_weight = coarse_node_weight_ets.local();
-        auto &local_used_entries = edge_collector.local_used_entries();
-        auto &local_edge_collector = edge_collector_ets.local();
-
-        const NodeID local_bucket_start = r.begin();
-        const NodeID local_bucket_end = r.end();
-        for (NodeID i = local_bucket_start; i < local_bucket_end; ++i) {
-          const NodeID u = buckets[i];
-          local_coarse_node_weight += graph.node_weight(u);
-
-          if (graph.degree(u) < kParallelIterationGrainsize * 2) {
-            graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
-              const NodeID c_v = mapping[v];
-              if (c_u != c_v) {
-                local_edge_collector[c_v] += w;
-
-                if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
-                  flush_local_rating_map(local_used_entries, local_edge_collector);
-                }
-              }
-            });
-
-            continue;
+        constexpr NodeID kParallelIterationGrainsize = 2000;
+        tbb::parallel_for(tbb::blocked_range<NodeID>(bucket_start, bucket_end), [&](const auto &r) {
+          auto &local_coarse_node_weight = coarse_node_weight_ets.local();
+          auto &local_used_entries = edge_collector.local_used_entries();
+          auto &local_edge_collector = edge_collector_ets.local();
+          if (local_edge_collector.capacity() != kMaxHashCapacity) {
+            local_edge_collector.set_capacity(kMaxHashCapacity);
           }
 
-          graph.pfor_adjacent_nodes(
-              u,
-              std::numeric_limits<NodeID>::max(),
-              kParallelIterationGrainsize,
-              [&](auto &&pfor_adjacent_nodes) {
-                auto &local_used_entries = edge_collector.local_used_entries();
-                auto &local_edge_collector = edge_collector_ets.local();
+          const NodeID local_bucket_start = r.begin();
+          const NodeID local_bucket_end = r.end();
+          for (NodeID i = local_bucket_start; i < local_bucket_end; ++i) {
+            const NodeID u = buckets[i];
+            local_coarse_node_weight += graph.node_weight(u);
 
-                pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
-                  const NodeID c_v = mapping[v];
-                  if (c_u != c_v) {
-                    local_edge_collector[c_v] += w;
+            if (graph.degree(u) < kParallelIterationGrainsize * 2) {
+              graph.adjacent_nodes(u, [&](const NodeID v, const EdgeWeight w) {
+                const NodeID c_v = mapping_ptr[v];
+                if (c_u != c_v) {
+                  local_edge_collector.add(c_v, w);
 
-                    if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
-                      flush_local_rating_map(local_used_entries, local_edge_collector);
-                    }
+                  if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
+                    flush_local_rating_map(local_used_entries, local_edge_collector);
                   }
-                });
-              }
-          );
+                }
+              });
+
+              continue;
+            }
+
+            graph.pfor_adjacent_nodes(
+                u,
+                std::numeric_limits<NodeID>::max(),
+                kParallelIterationGrainsize,
+                [&](auto &&pfor_adjacent_nodes) {
+                  auto &local_used_entries = edge_collector.local_used_entries();
+                  auto &local_edge_collector = edge_collector_ets.local();
+                  if (local_edge_collector.capacity() != kMaxHashCapacity) {
+                    local_edge_collector.set_capacity(kMaxHashCapacity);
+                  }
+
+                  pfor_adjacent_nodes([&](const NodeID v, const EdgeWeight w) {
+                    const NodeID c_v = mapping_ptr[v];
+                    if (c_u != c_v) {
+                      local_edge_collector.add(c_v, w);
+
+                      if (local_edge_collector.size() >= kDegreeThreshold) [[unlikely]] {
+                        flush_local_rating_map(local_used_entries, local_edge_collector);
+                      }
+                    }
+                  });
+                }
+            );
+          }
+        });
+
+        tbb::parallel_for(edge_collector_ets.range(), [&](const auto &local_edge_collectors) {
+          auto &local_used_entries = edge_collector.local_used_entries();
+          for (auto &local_edge_collector : local_edge_collectors) {
+            flush_local_rating_map(local_used_entries, local_edge_collector);
+          }
+        });
+
+        remapping_ptr[c_u] = cur_c_u;
+
+        NodeWeight c_u_weight = 0;
+        for (auto &local_c_u_weight : coarse_node_weight_ets) {
+          c_u_weight += local_c_u_weight;
+          local_c_u_weight = 0;
         }
-      });
 
-      tbb::parallel_for(edge_collector_ets.range(), [&](const auto &local_edge_collectors) {
-        auto &local_used_entries = edge_collector.local_used_entries();
-        for (auto &local_edge_collector : local_edge_collectors) {
-          flush_local_rating_map(local_used_entries, local_edge_collector);
-        }
-      });
+        c_nodes[cur_c_u] = cur_edge;
+        c_node_weights[cur_c_u] = c_u_weight;
+        cur_c_u += 1;
 
-      remapping.write(c_u, cur_c_u);
+        edge_collector.iterate_and_reset([&](const auto, const auto &local_neighbors) {
+          EdgeID local_cur_edge =
+              __atomic_fetch_add(&cur_edge, local_neighbors.size(), __ATOMIC_RELAXED);
 
-      NodeWeight c_u_weight = 0;
-      for (auto &local_c_u_weight : coarse_node_weight_ets) {
-        c_u_weight += local_c_u_weight;
-        local_c_u_weight = 0;
+          for (const auto [c_v, w] : local_neighbors) {
+            c_edges[local_cur_edge] = c_v;
+            c_edge_weights[local_cur_edge] = w;
+            local_cur_edge += 1;
+          }
+        });
       }
-
-      c_nodes[cur_c_u] = cur_edge;
-      c_node_weights[cur_c_u] = c_u_weight;
-      cur_c_u += 1;
-
-      edge_collector.iterate_and_reset([&](const auto, const auto &local_neighbors) {
-        EdgeID local_cur_edge =
-            __atomic_fetch_add(&cur_edge, local_neighbors.size(), __ATOMIC_RELAXED);
-
-        for (const auto [c_v, w] : local_neighbors) {
-          c_edges[local_cur_edge] = c_v;
-          c_edge_weights[local_cur_edge] = w;
-          local_cur_edge += 1;
-        }
-      });
     }
     STOP_TIMER();
 
@@ -545,23 +657,21 @@ std::unique_ptr<CoarseGraph> contract_clustering_unbuffered(
     DBG << " Second Phase: " << second_phase_nodes.size() << " clusters";
   }
 
-  const EdgeID c_m = next_coarse_node_info.info.edge;
+  const EdgeID c_m = next_coarse_node_info.edge;
   c_nodes[c_n] = c_m;
   STOP_TIMER();
 
-  // After aggregation, we have to remap the adjacent coarse nodes stored in the coarse edge array
-  // as well as the mapping which is used for projection during uncoarsening, because we remapped
-  // the coarse nodes during aggregation.
   START_TIMER("Remap coarse edges and mapping");
-  tbb::parallel_for(tbb::blocked_range<EdgeID>(0, c_m), [&](const auto &r) {
+  tbb::parallel_for(tbb::blocked_range<EdgeID>(0, c_m, 4096), [&](const auto &r) {
     for (EdgeID e = r.begin(); e != r.end(); ++e) {
-      c_edges[e] = remapping[c_edges[e]];
+      c_edges[e] = remapping_ptr[c_edges[e]];
     }
   });
 
-  tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n()), [&](const auto &r) {
+  NodeID *__restrict__ mapping_mut = mapping.data();
+  tbb::parallel_for(tbb::blocked_range<NodeID>(0, graph.n(), 4096), [&](const auto &r) {
     for (NodeID u = r.begin(); u != r.end(); ++u) {
-      mapping.write(u, remapping[mapping[u]]);
+      mapping_mut[u] = remapping_ptr[mapping_mut[u]];
     }
   });
   STOP_TIMER();
