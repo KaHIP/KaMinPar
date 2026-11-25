@@ -112,15 +112,15 @@ private:
 
   template <bool kFirstIteration>
   void visit_csr_unrestricted(const NodeID u, LocalWorker &local) {
-    const EdgeID *__restrict__ g_nodes = _graph.raw_nodes().data();
-    const NodeID *__restrict__ g_edges = _graph.raw_edges().data();
-    const BlockID *__restrict__ part = _state.raw_partition();
+    const EdgeID *g_nodes = _graph.raw_nodes().data();
+    const NodeID *g_edges = _graph.raw_edges().data();
+    const BlockID *part = _state.raw_partition();
     const EdgeID e_begin = g_nodes[u];
     const EdgeID e_end = g_nodes[u + 1];
     const BlockID from = __atomic_load_n(&part[u], __ATOMIC_RELAXED);
 
     const bool edge_weighted = _graph.is_edge_weighted();
-    const EdgeWeight *__restrict__ g_ew = edge_weighted ? _graph.raw_edge_weights().data() : nullptr;
+    const EdgeWeight *g_ew = edge_weighted ? _graph.raw_edge_weights().data() : nullptr;
 
     // Loop 1: fast prefix scan while neighbors remain in block `from`.
     // Interior nodes exit here without touching the rating map, selector, or block weights.
